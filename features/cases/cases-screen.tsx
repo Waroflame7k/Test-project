@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useDeferredValue, useMemo, useState } from "react";
+import { Fragment, useCallback, useDeferredValue, useMemo, useState } from "react";
 import {
   AlertTriangle,
   Calendar,
@@ -34,7 +34,7 @@ interface AdvancedFilters {
 }
 
 type FilterKey = "all" | "active" | "waiting-receipt" | "due-soon" | "overdue";
-type SortMode = "deadline" | "status" | "customer" | "fee" | "received";
+type SortMode = "deadline" | "status" | "customer" | "fee" | "received" | "receiving-agency";
 
 const SORT_LABELS: Record<SortMode, string> = {
   deadline: "Hẹn trả",
@@ -42,6 +42,7 @@ const SORT_LABELS: Record<SortMode, string> = {
   customer: "Khách hàng",
   fee: "Phí dịch vụ",
   received: "Ngày tạo",
+  "receiving-agency": "Nơi nộp",
 };
 
 const FILTERS: { key: FilterKey; label: string }[] = [
@@ -62,6 +63,16 @@ function compareOptionalDate(first: string, second: string) {
   if (!first) return 1;
   if (!second) return -1;
   return first.localeCompare(second);
+}
+
+function receivingAgencyLabel(receivingAgency?: string) {
+  return receivingAgency?.trim() || "Chưa có biên nhận";
+}
+
+function compareReceivingAgency(first: string, second: string) {
+  if (first === "Chưa có biên nhận") return 1;
+  if (second === "Chưa có biên nhận") return -1;
+  return first.localeCompare(second, "vi");
 }
 
 export function CasesScreen() {
@@ -94,7 +105,10 @@ export function CasesScreen() {
   const customerMap = useMemo(() => new Map(data.customers.map((customer) => [customer.id, customer])), [data.customers]);
   const profileMap = useMemo(() => new Map(data.profiles.map((profile) => [profile.id, profile])), [data.profiles]);
   const latestSubmissionMap = useMemo(() => {
-    const latest = new Map<string, { submissionCode: string; submittedDate: string; expectedReturnDate: string }>();
+    const latest = new Map<
+      string,
+      { submissionCode: string; submittedDate: string; expectedReturnDate: string; receivingAgency: string }
+    >();
     data.submissions.forEach((submission) => {
       const current = latest.get(submission.caseId);
       if (!current || submission.submittedDate > current.submittedDate) {
@@ -102,6 +116,7 @@ export function CasesScreen() {
           submissionCode: submission.submissionCode,
           submittedDate: submission.submittedDate,
           expectedReturnDate: submission.expectedReturnDate,
+          receivingAgency: submission.receivingAgency,
         });
       }
     });
@@ -188,6 +203,18 @@ export function CasesScreen() {
         return sorted.sort((firstCase, secondCase) => secondCase.serviceFee - firstCase.serviceFee);
       case "received":
         return sorted.sort((firstCase, secondCase) => secondCase.createdAt.localeCompare(firstCase.createdAt));
+      case "receiving-agency":
+        return sorted.sort((firstCase, secondCase) => {
+          const agencyComparison = compareReceivingAgency(
+            receivingAgencyLabel(latestSubmissionMap.get(firstCase.id)?.receivingAgency),
+            receivingAgencyLabel(latestSubmissionMap.get(secondCase.id)?.receivingAgency)
+          );
+          if (agencyComparison !== 0) return agencyComparison;
+          return compareOptionalDate(
+            returnDateFor(firstCase.id, firstCase.promisedDate),
+            returnDateFor(secondCase.id, secondCase.promisedDate)
+          );
+        });
       default:
         return sorted.sort((firstCase, secondCase) => {
           const firstDate = returnDateFor(firstCase.id, firstCase.promisedDate);
@@ -198,6 +225,15 @@ export function CasesScreen() {
         });
     }
   }, [activeFilter, advanced, allCases, customerMap, deferredSearch, latestSubmissionMap, returnDateFor, sortMode, today]);
+
+  const receivingAgencyCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    displayed.forEach((caseItem) => {
+      const agency = receivingAgencyLabel(latestSubmissionMap.get(caseItem.id)?.receivingAgency);
+      counts.set(agency, (counts.get(agency) ?? 0) + 1);
+    });
+    return counts;
+  }, [displayed, latestSubmissionMap]);
 
   const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
   const allVisibleSelected = displayed.length > 0 && displayed.every((caseItem) => selectedSet.has(caseItem.id));
@@ -518,20 +554,35 @@ export function CasesScreen() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[rgba(198,152,53,0.08)]">
-                {displayed.map((caseItem) => {
+                {displayed.map((caseItem, index) => {
                   const customer = customerMap.get(caseItem.customerId);
                   const assignedProfile = profileMap.get(caseItem.assignedTo);
                   const latestSubmission = latestSubmissionMap.get(caseItem.id);
+                  const receivingAgency = receivingAgencyLabel(latestSubmission?.receivingAgency);
+                  const previousAgency = index > 0
+                    ? receivingAgencyLabel(latestSubmissionMap.get(displayed[index - 1].id)?.receivingAgency)
+                    : null;
+                  const showAgencyGroup = sortMode === "receiving-agency" && receivingAgency !== previousAgency;
                   const returnDate = returnDateFor(caseItem.id, caseItem.promisedDate);
                   const overdue = Boolean(returnDate) && isOverdue(returnDate, today);
                   const dueSoon = Boolean(returnDate) && !overdue && isDueSoon(returnDate, today);
 
                   return (
-                    <tr
-                      key={caseItem.id}
-                      onClick={() => !batchMode && navigate("case-detail", { caseId: caseItem.id })}
-                      className={`transition ${batchMode ? "hover:bg-[rgba(255,249,240,0.55)]" : "cursor-pointer hover:bg-[rgba(255,249,240,0.42)]"}`}
-                    >
+                    <Fragment key={caseItem.id}>
+                      {showAgencyGroup ? (
+                        <tr className="border-y border-[rgba(198,152,53,0.12)] bg-[rgba(251,246,236,0.78)]">
+                          <td colSpan={batchMode ? 8 : 7} className="px-4 py-2.5">
+                            <span className="font-semibold text-[var(--text-main)]">{receivingAgency}</span>
+                            <span className="ml-2 rounded-full bg-white px-2 py-0.5 text-xs font-semibold text-[var(--text-soft)]">
+                              {receivingAgencyCounts.get(receivingAgency)}
+                            </span>
+                          </td>
+                        </tr>
+                      ) : null}
+                      <tr
+                        onClick={() => !batchMode && navigate("case-detail", { caseId: caseItem.id })}
+                        className={`transition ${batchMode ? "hover:bg-[rgba(255,249,240,0.55)]" : "cursor-pointer hover:bg-[rgba(255,249,240,0.42)]"}`}
+                      >
                       {batchMode ? (
                         <td className="px-4 py-3">
                           <button
@@ -575,7 +626,8 @@ export function CasesScreen() {
                           <span className="text-xs text-[var(--text-soft)]">Chưa có biên nhận</span>
                         )}
                       </td>
-                    </tr>
+                      </tr>
+                    </Fragment>
                   );
                 })}
               </tbody>
@@ -588,19 +640,32 @@ export function CasesScreen() {
         {displayed.length === 0 ? (
           <EmptyState title="Không có hồ sơ" message="Thử đổi bộ lọc hoặc tạo hồ sơ khách hàng mới." />
         ) : (
-          displayed.map((caseItem) => {
+          displayed.map((caseItem, index) => {
             const customer = customerMap.get(caseItem.customerId);
             const latestSubmission = latestSubmissionMap.get(caseItem.id);
+            const receivingAgency = receivingAgencyLabel(latestSubmission?.receivingAgency);
+            const previousAgency = index > 0
+              ? receivingAgencyLabel(latestSubmissionMap.get(displayed[index - 1].id)?.receivingAgency)
+              : null;
+            const showAgencyGroup = sortMode === "receiving-agency" && receivingAgency !== previousAgency;
             const returnDate = returnDateFor(caseItem.id, caseItem.promisedDate);
             const overdue = Boolean(returnDate) && isOverdue(returnDate, today);
             const dueSoon = Boolean(returnDate) && !overdue && isDueSoon(returnDate, today);
 
             return (
-              <button
-                key={caseItem.id}
-                onClick={() => !batchMode && navigate("case-detail", { caseId: caseItem.id })}
-                className="luxe-card w-full rounded-[1.1rem] p-3 text-left"
-              >
+              <div key={caseItem.id}>
+                {showAgencyGroup ? (
+                  <div className="flex items-center gap-2 px-1 pb-1 pt-3 first:pt-0">
+                    <span className="truncate text-sm font-bold text-[var(--text-main)]">{receivingAgency}</span>
+                    <span className="rounded-full bg-[rgba(251,246,236,0.95)] px-2 py-0.5 text-[11px] font-semibold text-[var(--text-soft)]">
+                      {receivingAgencyCounts.get(receivingAgency)}
+                    </span>
+                  </div>
+                ) : null}
+                <button
+                  onClick={() => !batchMode && navigate("case-detail", { caseId: caseItem.id })}
+                  className="luxe-card w-full rounded-[1.1rem] p-3 text-left"
+                >
                 <div className="flex gap-2.5">
                   {batchMode ? (
                     <span
@@ -647,7 +712,8 @@ export function CasesScreen() {
                     </div>
                   </div>
                 </div>
-              </button>
+                </button>
+              </div>
             );
           })
         )}
