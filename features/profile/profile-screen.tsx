@@ -1,12 +1,14 @@
 "use client";
 
-import { LogOut, Building2, Shield, CheckCircle2, FileText } from "lucide-react";
+import { useState } from "react";
+import { LogOut, Building2, Shield, CheckCircle2, FileText, Bell } from "lucide-react";
 import { useApp, useCurrentUser } from "@/features/app-shell/app-context";
 import { ROLE_LABELS } from "@/lib/constants";
 
 export function ProfileScreen() {
   const { data, logout } = useApp();
   const currentUser = useCurrentUser();
+  const [notificationMessage, setNotificationMessage] = useState("");
 
   const myTotalCases =
     currentUser.role === "admin" || currentUser.role === "manager"
@@ -24,6 +26,34 @@ export function ProfileScreen() {
     .map((w) => w[0])
     .join("")
     .toUpperCase();
+
+  async function sendTestNotification() {
+    if (!("Notification" in window)) {
+      setNotificationMessage("Thiết bị này chưa hỗ trợ thông báo web.");
+      return;
+    }
+
+    const permission =
+      Notification.permission === "default" ? await Notification.requestPermission() : Notification.permission;
+    if (permission !== "granted") {
+      setNotificationMessage("Bạn chưa cho phép thông báo. Hãy bật quyền Thông báo trong cài đặt trình duyệt.");
+      return;
+    }
+
+    const title = "Hồ sơ BĐS";
+    const options = {
+      body: "Thông báo thử đã hoạt động trên thiết bị này.",
+      tag: "ho-so-bds-test",
+    };
+
+    const registration = await navigator.serviceWorker?.ready;
+    if (registration) {
+      await registration.showNotification(title, options);
+    } else {
+      new Notification(title, options);
+    }
+    setNotificationMessage("Đã gửi thông báo thử.");
+  }
 
   return (
     <div className="p-4 md:p-6 pb-10">
@@ -83,6 +113,21 @@ export function ProfileScreen() {
               <p className="text-xs text-gray-400 mt-0.5">{data.organization.address}</p>
             </div>
           </div>
+        </div>
+
+        <div className="bg-white rounded-2xl shadow-sm p-4">
+          <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Thông báo trên thiết bị</h3>
+          <p className="text-xs leading-5 text-gray-500">
+            Kiểm tra quyền thông báo của điện thoại. Thông báo thử hoạt động khi web app đang mở hoặc đã cài ra màn hình chính.
+          </p>
+          <button
+            onClick={() => void sendTestNotification()}
+            className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-[#1a3a8a] py-3 text-sm font-bold text-white transition-colors hover:bg-[#122d6a]"
+          >
+            <Bell size={17} />
+            Gửi thông báo thử
+          </button>
+          {notificationMessage ? <p className="mt-3 text-xs font-medium text-[#1a3a8a]">{notificationMessage}</p> : null}
         </div>
 
         <div className="bg-blue-50 rounded-2xl p-4">
