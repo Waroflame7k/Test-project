@@ -17,6 +17,7 @@ import { can } from "@/lib/permissions";
 import { isCaseActive, receivableForCase } from "@/lib/case-utils";
 import { canSeeAllTasks } from "@/lib/task-utils";
 import { formatVnd } from "@/lib/money";
+import { currentMonthRange, isInDateRange } from "@/lib/reporting";
 import type { AlertItem } from "@/lib/alerts";
 import type { AppData, Case } from "@/types/domain";
 import {
@@ -139,6 +140,12 @@ export function DashboardScreen() {
     0
   );
 
+  const monthRange = currentMonthRange(today);
+  const receivedThisMonth = data.payments
+    .filter((payment) => payment.paymentType === "Thu" && isInDateRange(payment.paymentDate, monthRange))
+    .sort((firstPayment, secondPayment) => secondPayment.paymentDate.localeCompare(firstPayment.paymentDate));
+  const receivedThisMonthTotal = receivedThisMonth.reduce((sum, payment) => sum + payment.amount, 0);
+
   const recentCases = [...visibleCases]
     .sort((firstCase, secondCase) => secondCase.updatedAt.localeCompare(firstCase.updatedAt))
     .slice(0, 4);
@@ -203,6 +210,15 @@ export function DashboardScreen() {
           {
             label: "Khoản còn phải thu",
             value: formatVnd(totalReceivable),
+            icon: <CircleDollarSign size={16} />,
+          },
+        ]
+      : []),
+    ...(can(currentUser.role, "view_finance")
+      ? [
+          {
+            label: "Đã thu trong tháng",
+            value: formatVnd(receivedThisMonthTotal),
             icon: <CircleDollarSign size={16} />,
           },
         ]
@@ -301,7 +317,7 @@ export function DashboardScreen() {
   return (
     <div className="space-y-5 pb-4 md:space-y-6 md:pb-6">
       <section className="luxe-panel-strong rounded-[1.5rem] p-4 md:p-5">
-        <div className="grid gap-3 md:grid-cols-3">
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           {signalCards.map((item) => (
             <div key={item.label} className="rounded-[1.4rem] border border-[rgba(198,152,53,0.14)] bg-white px-4 py-3">
               <div className="flex items-center gap-2 text-[var(--gold-700)]">
@@ -403,6 +419,53 @@ export function DashboardScreen() {
         </div>
 
         <div className="space-y-5">
+          {can(currentUser.role, "view_finance") ? (
+            <SectionCard
+              title="Các khoản đã thu"
+              hint="Các khoản khách hàng đã thanh toán trong tháng hiện tại."
+              action={
+                <button
+                  onClick={() => navigate("finance", { rangeFrom: monthRange.from, rangeTo: monthRange.to })}
+                  className="inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-semibold text-[var(--gold-700)] transition hover:bg-[rgba(255,248,231,0.86)]"
+                >
+                  Xem thu chi
+                  <ChevronRight size={14} />
+                </button>
+              }
+            >
+              {receivedThisMonth.length === 0 ? (
+                <div className="rounded-[1.35rem] border border-dashed border-[rgba(198,152,53,0.18)] bg-[rgba(255,251,243,0.7)] p-5 text-sm text-[var(--text-soft)]">
+                  Chưa có khoản thu nào trong tháng này.
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {receivedThisMonth.slice(0, 5).map((payment) => {
+                    const paymentCase = data.cases.find((caseItem) => caseItem.id === payment.caseId);
+                    const customer = data.customers.find((item) => item.id === paymentCase?.customerId);
+                    return (
+                      <button
+                        key={payment.id}
+                        onClick={() => navigate("case-detail", { caseId: payment.caseId })}
+                        className="luxe-card flex w-full items-center justify-between gap-3 rounded-[1.2rem] px-4 py-3 text-left"
+                      >
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-bold text-[var(--text-main)]">{customer?.fullName ?? "Chưa xác định"}</p>
+                          <p className="mt-1 truncate text-xs text-[var(--text-soft)]">
+                            {paymentCase?.caseCode ?? "Không có mã hồ sơ"} · {payment.category}
+                          </p>
+                        </div>
+                        <div className="shrink-0 text-right">
+                          <p className="text-sm font-black text-[#4f7a48]">{formatVnd(payment.amount)}</p>
+                          <p className="mt-1 text-xs text-[var(--text-soft)]">{formatDate(payment.paymentDate)}</p>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </SectionCard>
+          ) : null}
+
           <SectionCard
             title="Cảnh báo ưu tiên"
             hint="Các hồ sơ nên mở lại trước để tránh trễ hoặc sót việc."

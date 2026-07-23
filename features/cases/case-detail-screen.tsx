@@ -82,6 +82,7 @@ export function CaseDetailScreen({ caseId }: { caseId: string }) {
 
   const caseSubmissions = data.submissions.filter((s) => s.caseId === caseId);
   const caseDocuments = data.documents.filter((d) => d.caseId === caseId);
+  const originalDocuments = caseDocuments.filter((document) => document.originalOrCopy === "Bản chính");
   const caseTasks = data.tasks.filter((t) => t.caseId === caseId);
   const casePayments = data.payments.filter((p) => p.caseId === caseId);
   const caseActivityLogs = data.activityLogs.filter((l) => l.caseId === caseId);
@@ -317,6 +318,37 @@ export function CaseDetailScreen({ caseId }: { caseId: string }) {
 
         {activeTab === "documents" && (
           <div className="space-y-3">
+            {originalDocuments.length > 0 ? (
+              <section className="rounded-2xl border border-amber-200 bg-amber-50/70 p-4">
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <div>
+                    <h3 className="text-sm font-bold text-amber-950">Bản chính đang giữ</h3>
+                    <p className="mt-0.5 text-xs text-amber-800">Theo dõi người giữ và lần bàn giao gần nhất.</p>
+                  </div>
+                  <span className="rounded-full bg-white px-2.5 py-1 text-xs font-bold text-amber-800">
+                    {originalDocuments.length}
+                  </span>
+                </div>
+                <div className="space-y-2">
+                  {originalDocuments.map((document) => {
+                    const holder = data.profiles.find((profile) => profile.id === document.currentHolderId);
+                    const latestTransfer = caseCustodyTransfers
+                      .filter((transfer) => transfer.documentId === document.id)
+                      .sort((first, second) => second.transferredAt.localeCompare(first.transferredAt))[0];
+                    return (
+                      <div key={document.id} className="rounded-xl border border-amber-100 bg-white px-3 py-2.5">
+                        <p className="text-sm font-semibold text-gray-800">{document.documentName}</p>
+                        <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-600">
+                          <span>Người giữ: {holder?.fullName ?? "Chưa xác định"}</span>
+                          <span>Vị trí: {document.storageLocation ?? "Chưa cập nhật"}</span>
+                          <span>Lần giao gần nhất: {latestTransfer ? formatDate(latestTransfer.transferredAt) : "Chưa có"}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+            ) : null}
             {caseDocuments.length === 0 ? (
               <EmptyState title="Chưa có tài liệu" message="Thêm tài liệu liên quan đến hồ sơ này." />
             ) : (
@@ -578,7 +610,7 @@ export function CaseDetailScreen({ caseId }: { caseId: string }) {
 
         <div className="overflow-x-auto px-4 scrollbar-none">
           <div className="flex gap-0 border-b border-gray-200 min-w-max">
-            {TABS.filter((tab) => tab.key !== "submissions" && tab.key !== "tasks").map((tab) => (
+            {TABS.map((tab) => (
               <button
                 key={tab.key}
                 onClick={() => setActiveTab(tab.key)}
@@ -692,7 +724,7 @@ export function CaseDetailScreen({ caseId }: { caseId: string }) {
         {/* Right panel: tabs + content */}
         <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
           <div className="flex gap-0 border-b border-gray-200 shrink-0">
-            {TABS.filter((tab) => tab.key !== "submissions" && tab.key !== "tasks").map((tab) => (
+            {TABS.map((tab) => (
               <button
                 key={tab.key}
                 onClick={() => setActiveTab(tab.key)}

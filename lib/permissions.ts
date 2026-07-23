@@ -35,6 +35,7 @@ const permissions: Record<UserRole, PermissionAction[]> = {
     "view_reports",
     "update_progress",
     "delete_case",
+    "view_finance",
     "add_submissions",
     "complete_tasks",
   ],

@@ -82,7 +82,7 @@ interface AppContextValue {
   addSubmission: (submission: Omit<Submission, "id" | "createdAt" | "updatedAt">) => void;
   addTask: (task: Omit<CaseTask, "id" | "createdAt">) => void;
   completeTask: (taskId: string) => void;
-  addPayment: (payment: Omit<Payment, "id">) => void;
+  addPayment: (payment: Omit<Payment, "id">) => Payment;
   addDocument: (doc: Omit<DocumentRecord, "id" | "createdAt">) => void;
   addCustodyTransfer: (transfer: Omit<CustodyTransfer, "id">) => void;
   addActivityLog: (log: Omit<ActivityLog, "id" | "createdAt">) => void;
@@ -339,9 +339,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   );
 
   const addPayment = useCallback(
-    (payment: Omit<Payment, "id">) => {
+    (payment: Omit<Payment, "id">): Payment => {
       const newPayment: Payment = { ...payment, id: genId("pay") };
       mutate((prev) => ({ ...prev, payments: [...prev.payments, newPayment] }));
+      return newPayment;
     },
     [mutate]
   );
@@ -357,7 +358,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const addCustodyTransfer = useCallback(
     (transfer: Omit<CustodyTransfer, "id">) => {
       const newTransfer: CustodyTransfer = { ...transfer, id: genId("ct") };
-      mutate((prev) => ({ ...prev, custodyTransfers: [...prev.custodyTransfers, newTransfer] }));
+      mutate((prev) => ({
+        ...prev,
+        custodyTransfers: [...prev.custodyTransfers, newTransfer],
+        documents: prev.documents.map((document) =>
+          document.id === newTransfer.documentId ? { ...document, currentHolderId: newTransfer.toUserId } : document
+        ),
+      }));
     },
     [mutate]
   );

@@ -4,6 +4,7 @@ import { generateCaseCode, receivableForCase } from "@/lib/case-utils";
 import { daysUntil, isDueSoon, isOverdue } from "@/lib/date";
 import { calculateReceivable } from "@/lib/money";
 import { can } from "@/lib/permissions";
+import { currentMonthRange, financeSummary } from "@/lib/reporting";
 import { demoData } from "@/services/demo-data";
 import { MockOCRProvider } from "@/services/ocr";
 import { DemoRepository } from "@/services/repository";
@@ -24,8 +25,17 @@ describe("nghiệp vụ hồ sơ BĐS", () => {
     expect(receivableForCase(demoData.cases[0], demoData.payments)).toBe(10_000_000);
   });
 
+  it("tổng hợp thu chi theo cùng logic cho tổng quan và báo cáo", () => {
+    const summary = financeSummary(demoData.payments);
+    expect(summary.received).toBeGreaterThan(0);
+    expect(summary.spent).toBeGreaterThan(0);
+    expect(summary.netCashflow).toBe(summary.received - summary.spent - summary.paidOnBehalf);
+    expect(currentMonthRange("2026-02-15")).toEqual({ from: "2026-02-01", to: "2026-02-28" });
+  });
+
   it("kiểm tra quyền người dùng", () => {
     expect(can("admin", "delete_case")).toBe(true);
+    expect(can("manager", "view_finance")).toBe(true);
     expect(can("legal_staff", "edit_finance")).toBe(false);
     expect(can("accountant", "edit_finance")).toBe(true);
   });

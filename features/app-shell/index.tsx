@@ -1,6 +1,6 @@
 "use client";
 
-import { Bell, ChevronLeft, ClipboardCheck, Folder, FolderOpen, Home, Sparkles, User } from "lucide-react";
+import { BarChart3, Bell, ChevronLeft, ClipboardCheck, Folder, FolderOpen, Home, Sparkles, User, WalletCards } from "lucide-react";
 import { AppProvider, useApp } from "@/features/app-shell/app-context";
 import { LoginScreen } from "@/features/auth/login-screen";
 import { CaseDetailScreen } from "@/features/cases/case-detail-screen";
@@ -8,11 +8,15 @@ import { CasesScreen } from "@/features/cases/cases-screen";
 import { CreateCaseWizard } from "@/features/cases/create-case-wizard";
 import { ScanReceiptScreen } from "@/features/cases/scan-receipt-screen";
 import { DashboardScreen } from "@/features/dashboard/dashboard-screen";
+import { FinanceScreen } from "@/features/finance/finance-screen";
 import { ProfileScreen } from "@/features/profile/profile-screen";
+import { ReportsScreen } from "@/features/reports/reports-screen";
+import { TaskCalendarScreen } from "@/features/tasks/task-calendar-screen";
 import { TasksScreen } from "@/features/tasks/tasks-screen";
 import { ROLE_LABELS } from "@/lib/constants";
+import { can } from "@/lib/permissions";
 
-const TAB_SCREENS = ["dashboard", "cases", "tasks", "profile"] as const;
+const TAB_SCREENS = ["dashboard", "cases", "tasks", "reports", "finance", "profile"] as const;
 type TabScreen = (typeof TAB_SCREENS)[number];
 
 const TABS: { key: TabScreen; label: string; icon: React.ReactNode; activeIcon: React.ReactNode }[] = [
@@ -33,6 +37,18 @@ const TABS: { key: TabScreen; label: string; icon: React.ReactNode; activeIcon: 
     label: "Công việc",
     icon: <ClipboardCheck size={19} strokeWidth={1.75} />,
     activeIcon: <ClipboardCheck size={19} strokeWidth={2.2} />,
+  },
+  {
+    key: "reports",
+    label: "Báo cáo",
+    icon: <BarChart3 size={19} strokeWidth={1.75} />,
+    activeIcon: <BarChart3 size={19} strokeWidth={2.2} />,
+  },
+  {
+    key: "finance",
+    label: "Thu chi",
+    icon: <WalletCards size={19} strokeWidth={1.75} />,
+    activeIcon: <WalletCards size={19} strokeWidth={2.2} />,
   },
   {
     key: "profile",
@@ -56,6 +72,12 @@ function headerTitle(screen: string): string {
       return "Tạo biên nhận hồ sơ";
     case "tasks":
       return "Công việc";
+    case "task-calendar":
+      return "Lịch công việc";
+    case "reports":
+      return "Báo cáo";
+    case "finance":
+      return "Thu chi";
     case "profile":
       return "Cá nhân";
     default:
@@ -65,6 +87,7 @@ function headerTitle(screen: string): string {
 
 function activeTabFor(screen: string): TabScreen {
   if (screen === "case-detail" || screen === "create-case" || screen === "scan-receipt") return "cases";
+  if (screen === "task-calendar") return "tasks";
   if (TAB_SCREENS.includes(screen as TabScreen)) return screen as TabScreen;
   return "dashboard";
 }
@@ -77,8 +100,13 @@ function AppShellInner() {
   }
 
   const activeTab = activeTabFor(currentScreen);
+  const navigationTabs = TABS.filter((tab) => {
+    if (tab.key === "reports") return can(currentUser.role, "view_reports");
+    if (tab.key === "finance") return can(currentUser.role, "view_finance");
+    return true;
+  });
   const showBack =
-    currentScreen === "case-detail" || currentScreen === "create-case" || currentScreen === "scan-receipt";
+    currentScreen === "case-detail" || currentScreen === "create-case" || currentScreen === "scan-receipt" || currentScreen === "task-calendar";
   const caseId = typeof screenParams.caseId === "string" ? screenParams.caseId : "";
 
   return (
@@ -102,7 +130,7 @@ function AppShellInner() {
           </div>
 
           <nav className="flex-1 px-2 py-3 space-y-1">
-            {TABS.map((tab) => {
+            {navigationTabs.map((tab) => {
               const isActive = activeTab === tab.key;
               return (
                 <button
@@ -175,13 +203,16 @@ function AppShellInner() {
           {currentScreen === "create-case" && <CreateCaseWizard />}
           {currentScreen === "scan-receipt" && <ScanReceiptScreen />}
           {currentScreen === "tasks" && <TasksScreen />}
+          {currentScreen === "task-calendar" && <TaskCalendarScreen />}
+          {currentScreen === "reports" && <ReportsScreen />}
+          {currentScreen === "finance" && <FinanceScreen />}
           {currentScreen === "profile" && <ProfileScreen />}
         </main>
 
         {!showBack && (
           <nav className="md:hidden fixed bottom-1 left-1 right-1 z-20 safe-bottom">
             <div className="luxe-panel-strong rounded-[1rem] px-1 py-1 flex items-center justify-between">
-              {TABS.map((tab) => {
+              {navigationTabs.filter((tab) => tab.key !== "finance").map((tab) => {
                 const isActive = activeTab === tab.key;
                 return (
                   <button
