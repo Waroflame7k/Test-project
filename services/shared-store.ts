@@ -146,6 +146,29 @@ async function writeFirestoreAppData(data: AppData): Promise<void> {
   );
 }
 
+async function upsertFirestoreAppData(incoming: AppData): Promise<AppData> {
+  const db = getFirebaseAdminDb();
+  if (!db) {
+    throw new Error("Firebase is not configured.");
+  }
+
+  const reference = db.collection(FIRESTORE_SYSTEM_COLLECTION).doc(FIRESTORE_APP_STATE_DOC);
+  return db.runTransaction(async (transaction) => {
+    const snapshot = await transaction.get(reference);
+    const current = (snapshot.data()?.data as AppData | undefined) ?? demoData;
+    const merged = mergeAppData(current, incoming);
+    transaction.set(
+      reference,
+      {
+        data: merged,
+        updatedAt: new Date().toISOString(),
+      },
+      { merge: true }
+    );
+    return merged;
+  });
+}
+
 export async function readSharedAppData(): Promise<AppData> {
   if (isFirebaseConfigured()) {
     const data = await readFirestoreAppData();
@@ -167,6 +190,9 @@ export async function writeSharedAppData(data: AppData): Promise<void> {
 }
 
 export async function upsertSharedAppData(incoming: AppData): Promise<AppData> {
+  if (isFirebaseConfigured()) {
+    return upsertFirestoreAppData(incoming);
+  }
   const current = await readSharedAppData();
   const merged = mergeAppData(current, incoming);
   await writeSharedAppData(merged);

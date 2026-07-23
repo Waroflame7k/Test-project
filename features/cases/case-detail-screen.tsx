@@ -28,7 +28,7 @@ import { formatDate, todayIso } from "@/lib/date";
 import { formatVnd } from "@/lib/money";
 import { paidByCustomer, receivableForCase } from "@/lib/case-utils";
 import { can } from "@/lib/permissions";
-import { CASE_STATUSES, PAYMENT_TYPES } from "@/lib/constants";
+import { CASE_STATUSES } from "@/lib/constants";
 import type { Case, CaseStatus, CustodyTransfer, PaymentType, Priority, SubmissionStatus, TaskStatus } from "@/types/domain";
 
 const TRANSFER_TYPES: CustodyTransfer["transferType"][] = [
@@ -152,7 +152,7 @@ export function CaseDetailScreen({ caseId }: { caseId: string }) {
   };
 
   // ── Tab content renderer (shared between mobile and desktop) ──────────────
-  function TabContent() {
+  function renderTabContent() {
     return (
       <>
         {activeTab === "info" && (
@@ -596,7 +596,7 @@ export function CaseDetailScreen({ caseId }: { caseId: string }) {
         </div>
 
         <div className="flex-1 overflow-y-auto px-4 py-4 pb-24">
-          <TabContent />
+          {renderTabContent()}
         </div>
       </div>
 
@@ -708,7 +708,7 @@ export function CaseDetailScreen({ caseId }: { caseId: string }) {
             ))}
           </div>
           <div className="flex-1 overflow-y-auto py-4">
-            <TabContent />
+            {renderTabContent()}
           </div>
         </div>
       </div>
@@ -745,8 +745,6 @@ export function CaseDetailScreen({ caseId }: { caseId: string }) {
       <SubmissionModal
         open={submissionModalOpen}
         onClose={() => setSubmissionModalOpen(false)}
-        caseId={caseId}
-        caseItem={caseItem}
         currentUserId={currentUser.id}
         onSubmit={(values) => {
           addSubmission({
@@ -761,7 +759,6 @@ export function CaseDetailScreen({ caseId }: { caseId: string }) {
       <TaskModal
         open={taskModalOpen}
         onClose={() => setTaskModalOpen(false)}
-        caseId={caseId}
         profiles={data.profiles}
         currentUserId={currentUser.id}
         onSubmit={(values) => {
@@ -773,8 +770,6 @@ export function CaseDetailScreen({ caseId }: { caseId: string }) {
       <PaymentModal
         open={paymentModalOpen}
         onClose={() => setPaymentModalOpen(false)}
-        caseId={caseId}
-        currentUserId={currentUser.id}
         onSubmit={(values) => {
           addPayment({ ...values, caseId, createdBy: currentUser.id });
           setPaymentModalOpen(false);
@@ -821,15 +816,11 @@ export function CaseDetailScreen({ caseId }: { caseId: string }) {
 function SubmissionModal({
   open,
   onClose,
-  caseId,
-  caseItem,
   currentUserId,
   onSubmit,
 }: {
   open: boolean;
   onClose: () => void;
-  caseId: string;
-  caseItem: { caseCode: string };
   currentUserId: string;
   onSubmit: (values: {
     submissionCode: string;
@@ -919,14 +910,12 @@ function SubmissionModal({
 function TaskModal({
   open,
   onClose,
-  caseId,
   profiles,
   currentUserId,
   onSubmit,
 }: {
   open: boolean;
   onClose: () => void;
-  caseId: string;
   profiles: Array<{ id: string; fullName: string; role: string }>;
   currentUserId: string;
   onSubmit: (values: {
@@ -1013,14 +1002,10 @@ function TaskModal({
 function PaymentModal({
   open,
   onClose,
-  caseId,
-  currentUserId,
   onSubmit,
 }: {
   open: boolean;
   onClose: () => void;
-  caseId: string;
-  currentUserId: string;
   onSubmit: (values: {
     paymentType: PaymentType;
     category: string;

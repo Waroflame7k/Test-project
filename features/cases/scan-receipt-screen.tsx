@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
   BadgeCheck,
   Building2,
@@ -77,26 +77,6 @@ export function ScanReceiptScreen() {
     return data.cases.filter((caseItem) => !caseItem.archivedAt);
   }, [data.cases]);
 
-  useEffect(() => {
-    if (assignableProfiles.length === 0 || form.assignedTo) return;
-    setForm((prev) => ({ ...prev, assignedTo: assignableProfiles[0]?.id ?? "" }));
-  }, [assignableProfiles, form.assignedTo]);
-
-  useEffect(() => {
-    if (!ocrResult) return;
-
-    setForm((prev) => ({
-      ...prev,
-      submissionCode: ocrResult.submissionCode,
-      procedureType: ocrResult.procedureType,
-      receivingAgency: ocrResult.receivingAgency,
-      submittedDate: ocrResult.submittedDate,
-      expectedReturnDate: ocrResult.expectedReturnDate,
-      applicantName: ocrResult.applicantName,
-      submittedBy: ocrResult.submittedBy || prev.submittedBy,
-    }));
-  }, [ocrResult]);
-
   const suggestedCases = useMemo(() => {
     const query = search.trim().toLowerCase();
 
@@ -134,16 +114,13 @@ export function ScanReceiptScreen() {
       customer: (typeof data.customers)[number] | undefined;
       score: number;
     }>;
-  }, [availableCases, data.customers, ocrResult, search]);
+  }, [availableCases, data, ocrResult, search]);
 
-  useEffect(() => {
-    if (!ocrResult || selectedCaseId || suggestedCases.length === 0) return;
-    if (suggestedCases[0].score > 0) {
-      setSelectedCaseId(suggestedCases[0].caseItem.id);
-    }
-  }, [ocrResult, selectedCaseId, suggestedCases]);
-
-  const selectedCase = availableCases.find((caseItem) => caseItem.id === selectedCaseId) ?? null;
+  const suggestedCaseId =
+    !selectedCaseId && ocrResult && suggestedCases[0]?.score > 0 ? suggestedCases[0].caseItem.id : "";
+  const activeCaseId = selectedCaseId || suggestedCaseId;
+  const activeAssigneeId = form.assignedTo || assignableProfiles[0]?.id || "";
+  const selectedCase = availableCases.find((caseItem) => caseItem.id === activeCaseId) ?? null;
   const selectedCustomer = selectedCase
     ? data.customers.find((customer) => customer.id === selectedCase.customerId) ?? null
     : null;
@@ -160,6 +137,16 @@ export function ScanReceiptScreen() {
     try {
       const result = await new MockOCRProvider().extractReceipt(file);
       setOcrResult(result);
+      setForm((previous) => ({
+        ...previous,
+        submissionCode: result.submissionCode,
+        procedureType: result.procedureType,
+        receivingAgency: result.receivingAgency,
+        submittedDate: result.submittedDate,
+        expectedReturnDate: result.expectedReturnDate,
+        applicantName: result.applicantName,
+        submittedBy: result.submittedBy || previous.submittedBy,
+      }));
       setEntryMode("ocr");
       setSelectedCaseId("");
       setStepIndex(0);
@@ -184,7 +171,7 @@ export function ScanReceiptScreen() {
 
   function canProceed(): boolean {
     if (stepIndex === 0) {
-      return Boolean(selectedCaseId);
+      return Boolean(activeCaseId);
     }
 
     if (stepIndex === 1) {
@@ -195,7 +182,7 @@ export function ScanReceiptScreen() {
           form.submittedDate &&
           form.expectedReturnDate &&
           form.applicantName.trim() &&
-          form.assignedTo
+          activeAssigneeId
       );
     }
 
@@ -219,7 +206,7 @@ export function ScanReceiptScreen() {
     });
 
     updateCase(selectedCase.id, {
-      assignedTo: form.assignedTo,
+      assignedTo: activeAssigneeId,
       priority: form.priority,
       receivedDate: form.submittedDate,
       internalDueDate: form.expectedReturnDate,
@@ -363,7 +350,7 @@ export function ScanReceiptScreen() {
 
             <div className="space-y-2 max-h-[26rem] overflow-y-auto">
               {suggestedCases.map(({ caseItem, customer, score }) => {
-                const isSelected = selectedCaseId === caseItem.id;
+                const isSelected = activeCaseId === caseItem.id;
                 const hasReceipt = data.submissions.some((submission) => submission.caseId === caseItem.id);
 
                 return (
@@ -498,7 +485,7 @@ export function ScanReceiptScreen() {
               <label className="block">
                 <span className="text-xs text-gray-400 mb-1 block">Người phụ trách *</span>
                 <select
-                  value={form.assignedTo}
+                  value={activeAssigneeId}
                   onChange={(event) => setFormField("assignedTo", event.target.value)}
                   className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white"
                 >
@@ -563,7 +550,7 @@ export function ScanReceiptScreen() {
               <SummaryRow
                 icon={<User size={14} />}
                 label="Người phụ trách"
-                value={data.profiles.find((profile) => profile.id === form.assignedTo)?.fullName ?? "—"}
+                value={data.profiles.find((profile) => profile.id === activeAssigneeId)?.fullName ?? "—"}
               />
             </div>
 

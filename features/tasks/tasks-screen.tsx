@@ -6,7 +6,7 @@ import { useApp, useCurrentUser } from "@/features/app-shell/app-context";
 import { Modal } from "@/components/ui/modal";
 import { PriorityBadge } from "@/components/ui/priority-badge";
 import { EmptyState } from "@/components/ui/empty-state";
-import { todayIso, parseIsoDate, formatDate } from "@/lib/date";
+import { todayIso, formatDate } from "@/lib/date";
 import { can } from "@/lib/permissions";
 import type { CaseTask, Priority } from "@/types/domain";
 
@@ -20,10 +20,6 @@ function getWeekStart(date: Date): Date {
   const day = d.getDay();
   d.setDate(d.getDate() - day);
   return d;
-}
-
-function getMonthStart(date: Date): Date {
-  return new Date(date.getFullYear(), date.getMonth(), 1);
 }
 
 function dateToIso(d: Date): string {
@@ -120,7 +116,7 @@ export function TasksScreen() {
   }
 
   // Shared task list rendering
-  function TaskList() {
+  function renderTaskList() {
     return (
       <>
         {displayedTasks.length === 0 ? (
@@ -271,7 +267,7 @@ export function TasksScreen() {
         </div>
 
         <div className="flex-1 overflow-y-auto px-4 pb-28 space-y-0">
-          <TaskList />
+          {renderTaskList()}
         </div>
 
         <div className="px-4 pb-6">
@@ -393,7 +389,7 @@ export function TasksScreen() {
           </div>
 
           <div className="flex-1 overflow-y-auto space-y-0">
-            <TaskList />
+            {renderTaskList()}
           </div>
         </div>
       </div>

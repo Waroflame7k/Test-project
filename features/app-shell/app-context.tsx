@@ -6,7 +6,6 @@ import type {
   AppData,
   Case,
   CaseProperty,
-  CaseStatus,
   CaseTask,
   CustodyTransfer,
   Customer,
@@ -18,10 +17,10 @@ import type {
 } from "@/types/domain";
 import { demoData } from "@/services/demo-data";
 import { generateCaseCode } from "@/lib/case-utils";
-import { todayIso } from "@/lib/date";
 import { CASE_STATUSES, DEMO_PASSWORD } from "@/lib/constants";
 
 const STORAGE_KEY = "bds-data";
+let remoteSaveTimeout: number | undefined;
 
 async function loadData(): Promise<AppData> {
   if (typeof window === "undefined") return demoData;
@@ -49,15 +48,19 @@ function saveData(data: AppData): void {
   } catch {
     // ignore storage errors
   }
-  void fetch("/api/app-data", {
-    method: "PUT",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(data),
-  }).catch(() => {
-    // ignore network errors and keep local fallback
-  });
+  if (remoteSaveTimeout) window.clearTimeout(remoteSaveTimeout);
+  // Combine rapid form updates into one Firestore write while retaining local data immediately.
+  remoteSaveTimeout = window.setTimeout(() => {
+    void fetch("/api/app-data", {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(data),
+    }).catch(() => {
+      // ignore network errors and keep local fallback
+    });
+  }, 250);
 }
 
 interface AppContextValue {

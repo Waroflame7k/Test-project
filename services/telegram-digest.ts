@@ -28,7 +28,7 @@ async function sendTelegramMessage(chatId: string, text: string) {
   const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ chat_id: chatId, text, disable_web_page_preview: true }),
+    body: JSON.stringify({ chat_id: chatId, text, disable_notification: false, disable_web_page_preview: true }),
   });
 
   if (!response.ok) {

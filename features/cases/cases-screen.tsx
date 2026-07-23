@@ -1,6 +1,6 @@
 "use client";
 
-import { useDeferredValue, useMemo, useState } from "react";
+import { useCallback, useDeferredValue, useMemo, useState } from "react";
 import {
   AlertTriangle,
   Calendar,
@@ -108,8 +108,10 @@ export function CasesScreen() {
     return latest;
   }, [data.submissions]);
 
-  const returnDateFor = (caseId: string, fallbackDate: string) =>
-    latestSubmissionMap.get(caseId)?.expectedReturnDate || fallbackDate;
+  const returnDateFor = useCallback(
+    (caseId: string, fallbackDate: string) => latestSubmissionMap.get(caseId)?.expectedReturnDate || fallbackDate,
+    [latestSubmissionMap]
+  );
 
   const serviceTypes = useMemo(() => [...new Set(allCases.map((caseItem) => caseItem.serviceType))].sort(), [allCases]);
   const staffList = useMemo(() => {
@@ -195,7 +197,7 @@ export function CasesScreen() {
           return firstRank - secondRank || compareOptionalDate(firstDate, secondDate);
         });
     }
-  }, [activeFilter, advanced, allCases, customerMap, deferredSearch, latestSubmissionMap, sortMode, today]);
+  }, [activeFilter, advanced, allCases, customerMap, deferredSearch, latestSubmissionMap, returnDateFor, sortMode, today]);
 
   const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
   const allVisibleSelected = displayed.length > 0 && displayed.every((caseItem) => selectedSet.has(caseItem.id));

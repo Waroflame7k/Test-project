@@ -1,6 +1,4 @@
 import { demoData } from "@/services/demo-data";
-import { isSupabaseConfigured } from "@/services/supabase-client";
-import { SupabaseRepository } from "@/services/supabase-repository";
 import type {
   ActivityLog,
   AppData,
@@ -259,9 +257,6 @@ export class DemoRepository implements DataRepository {
 }
 
 export function createRepository(): DataRepository {
-  if (isSupabaseConfigured()) {
-    return new SupabaseRepository();
-  }
   return new DemoRepository(undefined, true);
 }
 

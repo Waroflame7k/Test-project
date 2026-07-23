@@ -8,7 +8,6 @@ import {
   ClipboardList,
   Clock3,
   FileText,
-  RefreshCw,
   TriangleAlert,
 } from "lucide-react";
 import { useApp, useCurrentUser } from "@/features/app-shell/app-context";
