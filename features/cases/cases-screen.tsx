@@ -277,14 +277,14 @@ export function CasesScreen() {
   }
 
   return (
-    <div className="space-y-5 pb-6 md:space-y-6">
-      <section className="luxe-panel-strong rounded-[1.4rem] p-4 md:p-5">
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+    <div className="space-y-3 pb-2 md:space-y-6 md:pb-6">
+      <section className="luxe-panel-strong rounded-[1.1rem] p-3 md:rounded-[1.4rem] md:p-5">
+        <div className="flex flex-col gap-2 md:gap-4 xl:flex-row xl:items-end xl:justify-between">
           <div className="flex flex-wrap gap-2">
             {(canBulkUpdate || canArchive) && (
               <button
                 onClick={() => (batchMode ? exitBatchMode() : setBatchMode(true))}
-                className={`rounded-2xl px-4 py-2.5 text-sm font-semibold transition ${
+                  className={`rounded-xl px-3 py-2 text-xs font-semibold transition md:rounded-2xl md:px-4 md:py-2.5 md:text-sm ${
                   batchMode ? "luxe-button-primary" : "luxe-button-secondary"
                 }`}
               >
@@ -295,7 +295,7 @@ export function CasesScreen() {
             {canCreateReceipt && (
               <button
                 onClick={() => navigate("scan-receipt")}
-                className="inline-flex items-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-semibold luxe-button-secondary"
+                className="inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold luxe-button-secondary md:gap-2 md:rounded-2xl md:px-4 md:py-2.5 md:text-sm"
               >
                 <ScanText size={16} />
                 Tạo biên nhận hồ sơ
@@ -305,7 +305,7 @@ export function CasesScreen() {
             {canCreateCustomerProfile && (
               <button
                 onClick={() => navigate("create-case")}
-                className="inline-flex items-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-semibold luxe-button-primary"
+                className="inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold luxe-button-primary md:gap-2 md:rounded-2xl md:px-4 md:py-2.5 md:text-sm"
               >
                 <Plus size={16} />
                 Tạo hồ sơ khách hàng
@@ -314,19 +314,19 @@ export function CasesScreen() {
           </div>
         </div>
 
-        <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-2 md:mt-5 md:gap-3 xl:grid-cols-4">
           {summaryCards.map((item) => (
-            <div key={item.label} className="rounded-[1.3rem] border border-[rgba(198,152,53,0.12)] bg-white px-4 py-3">
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--text-faint)]">{item.label}</p>
-              <p className="mt-2 text-2xl font-black text-[var(--text-main)]">{item.value}</p>
+            <div key={item.label} className="rounded-xl border border-[rgba(198,152,53,0.12)] bg-white px-3 py-2 md:rounded-[1.3rem] md:px-4 md:py-3">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[var(--text-faint)] md:text-xs md:tracking-[0.16em]">{item.label}</p>
+              <p className="mt-1 text-xl font-black text-[var(--text-main)] md:mt-2 md:text-2xl">{item.value}</p>
             </div>
           ))}
         </div>
       </section>
 
-      <section className="luxe-panel rounded-[1.8rem] p-4 md:p-5">
-        <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
-          <div className="flex flex-1 items-center gap-2 rounded-2xl border border-[rgba(198,152,53,0.14)] bg-white px-4 py-3">
+      <section className="luxe-panel rounded-[1.1rem] p-3 md:rounded-[1.8rem] md:p-5">
+        <div className="flex flex-col gap-2 md:gap-3 xl:flex-row xl:items-center">
+          <div className="flex flex-1 items-center gap-2 rounded-xl border border-[rgba(198,152,53,0.14)] bg-white px-3 py-2.5 md:rounded-2xl md:px-4 md:py-3">
             <Search size={16} className="shrink-0 text-[var(--text-faint)]" />
             <input
               type="text"
@@ -337,11 +337,11 @@ export function CasesScreen() {
             />
           </div>
 
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto] xl:w-[360px]">
+          <div className="grid grid-cols-[1fr_auto] gap-2 md:gap-3 xl:w-[360px]">
             <select
               value={sortMode}
               onChange={(event) => setSortMode(event.target.value as SortMode)}
-              className="luxe-input rounded-2xl px-4 py-3 text-sm outline-none"
+              className="luxe-input rounded-xl px-3 py-2.5 text-xs outline-none md:rounded-2xl md:px-4 md:py-3 md:text-sm"
             >
               {(Object.keys(SORT_LABELS) as SortMode[]).map((mode) => (
                 <option key={mode} value={mode}>
@@ -352,7 +352,7 @@ export function CasesScreen() {
 
             <button
               onClick={() => setShowAdvanced((previous) => !previous)}
-              className={`inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold transition ${
+              className={`inline-flex items-center justify-center gap-1.5 rounded-xl px-3 py-2.5 text-xs font-semibold transition md:gap-2 md:rounded-2xl md:px-4 md:py-3 md:text-sm ${
                 showAdvanced || hasAdvancedFilter ? "luxe-button-primary" : "luxe-button-secondary"
               }`}
             >
@@ -362,12 +362,12 @@ export function CasesScreen() {
           </div>
         </div>
 
-        <div className="mt-4 flex gap-2 overflow-x-auto pb-1">
+        <div className="mt-3 flex gap-1.5 overflow-x-auto pb-0.5 md:mt-4 md:gap-2 md:pb-1">
           {FILTERS.map((filter) => (
             <button
               key={filter.key}
               onClick={() => setActiveFilter(filter.key)}
-              className={`shrink-0 rounded-full px-4 py-2 text-sm font-semibold transition ${
+              className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold transition md:px-4 md:py-2 md:text-sm ${
                 activeFilter === filter.key
                   ? "border border-[rgba(198,152,53,0.2)] bg-[rgba(255,249,238,0.95)] text-[var(--gold-700)]"
                   : "border border-transparent bg-white text-[var(--text-soft)] hover:border-[rgba(198,152,53,0.14)]"
@@ -442,7 +442,7 @@ export function CasesScreen() {
           </div>
         )}
 
-        <div className="mt-4 flex flex-wrap items-center gap-2 text-sm text-[var(--text-soft)]">
+        <div className="mt-3 flex flex-wrap items-center gap-1.5 text-xs text-[var(--text-soft)] md:mt-4 md:gap-2 md:text-sm">
           <span>{displayed.length} hồ sơ hiển thị</span>
           <span className="text-[var(--border-strong)]">•</span>
           <span>Sắp xếp theo {SORT_LABELS[sortMode]}</span>
@@ -582,7 +582,7 @@ export function CasesScreen() {
         )}
       </section>
 
-      <section className="space-y-3 md:hidden">
+      <section className="space-y-2 md:hidden">
         {displayed.length === 0 ? (
           <EmptyState title="Không có hồ sơ" message="Thử đổi bộ lọc hoặc tạo hồ sơ khách hàng mới." />
         ) : (
@@ -597,9 +597,9 @@ export function CasesScreen() {
               <button
                 key={caseItem.id}
                 onClick={() => !batchMode && navigate("case-detail", { caseId: caseItem.id })}
-                className="luxe-card w-full rounded-[1.5rem] p-4 text-left"
+                className="luxe-card w-full rounded-[1.1rem] p-3 text-left"
               >
-                <div className="flex gap-3">
+                <div className="flex gap-2.5">
                   {batchMode ? (
                     <span
                       onClick={(event) => {
@@ -612,8 +612,8 @@ export function CasesScreen() {
                     </span>
                   ) : null}
 
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-[rgba(198,152,53,0.14)] bg-white text-[var(--gold-700)]">
-                    <FileText size={22} />
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[rgba(198,152,53,0.14)] bg-white text-[var(--gold-700)]">
+                    <FileText size={19} />
                   </div>
 
                   <div className="min-w-0 flex-1">
@@ -631,15 +631,15 @@ export function CasesScreen() {
                       ) : null}
                     </div>
 
-                    <p className="mt-1 truncate text-sm text-[var(--text-main)]">{caseItem.serviceType}</p>
-                    <div className="mt-2 flex items-center gap-2 text-xs text-[var(--text-soft)]">
+                    <p className="mt-0.5 truncate text-xs text-[var(--text-main)]">{caseItem.serviceType}</p>
+                    <div className="mt-1.5 flex items-center gap-1.5 text-[11px] text-[var(--text-soft)]">
                       <Calendar size={12} />
                       <span>{returnDate ? `Hẹn trả ${formatDate(returnDate)}` : "Chưa hẹn trả"}</span>
                     </div>
 
-                    <div className="mt-3 flex items-center justify-between gap-3">
+                    <div className="mt-2 flex items-center justify-between gap-2">
                       <StatusBadge status={caseItem.status} />
-                      <span className="text-xs font-semibold text-[var(--text-soft)]">
+                      <span className="truncate text-[11px] font-semibold text-[var(--text-soft)]">
                         {latestSubmission ? latestSubmission.submissionCode : "Chưa có biên nhận"}
                       </span>
                     </div>
@@ -652,11 +652,11 @@ export function CasesScreen() {
       </section>
 
       {!batchMode && (
-        <div className="fixed bottom-24 left-4 right-4 z-10 grid grid-cols-2 gap-3 md:hidden">
+        <div className="fixed bottom-16 left-2 right-2 z-10 grid grid-cols-2 gap-2 md:hidden">
           {canCreateReceipt ? (
             <button
               onClick={() => navigate("scan-receipt")}
-              className="inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold shadow-lg luxe-button-secondary"
+              className="inline-flex items-center justify-center gap-1.5 rounded-xl px-3 py-2.5 text-xs font-semibold shadow-lg luxe-button-secondary"
             >
               <ScanText size={17} />
               Tạo biên nhận
@@ -666,7 +666,7 @@ export function CasesScreen() {
           {canCreateCustomerProfile ? (
             <button
               onClick={() => navigate("create-case")}
-              className="inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold shadow-lg luxe-button-primary"
+              className="inline-flex items-center justify-center gap-1.5 rounded-xl px-3 py-2.5 text-xs font-semibold shadow-lg luxe-button-primary"
             >
               <Plus size={17} />
               Tạo hồ sơ

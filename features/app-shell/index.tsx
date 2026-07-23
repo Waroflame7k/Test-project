@@ -135,29 +135,29 @@ function AppShellInner() {
       </aside>
 
       <div className="flex flex-col flex-1 min-w-0 overflow-hidden p-0 md:p-2 md:pl-0">
-        <header className="shrink-0 z-20 px-3 pt-3 md:px-0 md:pt-0">
-          <div className="luxe-panel-strong rounded-[1.1rem] px-4 md:px-4 py-3 md:py-3 flex items-center justify-between gap-3">
+        <header className="shrink-0 z-20 px-2 pt-2 md:px-0 md:pt-0">
+          <div className="luxe-panel-strong rounded-[0.95rem] px-3 py-2 md:rounded-[1.1rem] md:px-4 md:py-3 flex items-center justify-between gap-2 md:gap-3">
             {showBack ? (
               <button
                 onClick={() => navigate(activeTab)}
-                className="md:hidden w-10 h-10 flex items-center justify-center rounded-full luxe-button-ghost transition-colors"
+                className="md:hidden h-9 w-9 flex items-center justify-center rounded-full luxe-button-ghost transition-colors"
               >
                 <ChevronLeft size={20} />
               </button>
             ) : (
-              <div className="md:hidden w-10 h-10 flex items-center justify-center rounded-full bg-[rgba(255,248,233,0.8)] border border-[rgba(198,152,53,0.14)]">
-                <FolderOpen size={18} className="text-[#ab7e24]" />
+              <div className="md:hidden h-9 w-9 flex items-center justify-center rounded-full bg-[rgba(255,248,233,0.8)] border border-[rgba(198,152,53,0.14)]">
+                <FolderOpen size={17} className="text-[#ab7e24]" />
               </div>
             )}
 
             <div className="flex-1 min-w-0 text-center md:text-left">
               <p className="hidden md:block text-[11px] uppercase tracking-[0.24em] text-[#a1865b] mb-1">Bảng điều khiển</p>
-              <h1 className="text-base md:text-[1.2rem] font-extrabold tracking-tight text-[#342312] truncate">
+              <h1 className="text-[15px] md:text-[1.2rem] font-extrabold tracking-tight text-[#342312] truncate">
                 {headerTitle(currentScreen)}
               </h1>
             </div>
 
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="hidden md:flex items-center gap-2 shrink-0">
               <button className="w-10 h-10 flex items-center justify-center rounded-full luxe-button-ghost transition-colors">
                 <Bell size={18} />
               </button>
@@ -168,7 +168,7 @@ function AppShellInner() {
           </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto px-3 pb-28 pt-3 md:px-0 md:pb-0 md:pt-2">
+        <main className="flex-1 overflow-y-auto px-2 pb-20 pt-2 md:px-0 md:pb-0 md:pt-2">
           {currentScreen === "dashboard" && <DashboardScreen />}
           {currentScreen === "cases" && <CasesScreen />}
           {currentScreen === "case-detail" && caseId && <CaseDetailScreen caseId={caseId} />}
@@ -179,20 +179,20 @@ function AppShellInner() {
         </main>
 
         {!showBack && (
-          <nav className="md:hidden fixed bottom-3 left-3 right-3 z-20 safe-bottom">
-            <div className="luxe-panel-strong rounded-[1.35rem] px-2 py-2 flex items-center justify-between">
+          <nav className="md:hidden fixed bottom-1 left-1 right-1 z-20 safe-bottom">
+            <div className="luxe-panel-strong rounded-[1rem] px-1 py-1 flex items-center justify-between">
               {TABS.map((tab) => {
                 const isActive = activeTab === tab.key;
                 return (
                   <button
                     key={tab.key}
                     onClick={() => navigate(tab.key)}
-                    className={`flex-1 flex flex-col items-center justify-center py-2 gap-1 rounded-2xl transition-all ${
+                    className={`flex-1 flex flex-col items-center justify-center py-1.5 gap-0.5 rounded-xl transition-all ${
                       isActive ? "bg-[rgba(255,245,220,0.94)] text-[#8b6418]" : "text-[#8a7758]"
                     }`}
                   >
                     <span>{isActive ? tab.activeIcon : tab.icon}</span>
-                    <span className="text-[10px] font-semibold">{tab.label}</span>
+                    <span className="text-[9px] font-semibold">{tab.label}</span>
                   </button>
                 );
               })}
