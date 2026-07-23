@@ -91,6 +91,7 @@ export function CaseDetailScreen({ caseId }: { caseId: string }) {
   const caseCustodyTransfers = data.custodyTransfers.filter((ct) => caseDocIds.has(ct.documentId));
 
   const paid = paidByCustomer(caseId, data.payments);
+  const spent = casePayments.filter((payment) => payment.paymentType === "Chi").reduce((sum, payment) => sum + payment.amount, 0);
   const receivable = receivableForCase(caseItem, data.payments);
 
   const canUpdateProgress = can(currentUser.role, "update_progress");
@@ -226,6 +227,10 @@ export function CaseDetailScreen({ caseId }: { caseId: string }) {
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-500">Đã thu</span>
                     <span className="font-semibold text-green-600">{formatVnd(paid)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-500">Đã chi cho hồ sơ</span>
+                    <span className="font-semibold text-red-600">{formatVnd(spent)}</span>
                   </div>
                   <div className="flex justify-between text-sm border-t border-gray-100 pt-2">
                     <span className="text-gray-500">Còn phải thu</span>
@@ -532,14 +537,7 @@ export function CaseDetailScreen({ caseId }: { caseId: string }) {
                   ))
                 )}
 
-                {canEditFinance && (
-                  <button
-                    onClick={() => setPaymentModalOpen(true)}
-                    className="w-full border-2 border-dashed border-gray-200 rounded-2xl py-4 flex items-center justify-center gap-2 text-sm font-semibold text-gray-400 hover:border-[#1a3a8a] hover:text-[#1a3a8a] transition-colors"
-                  >
-                    <Plus size={16} /> Ghi nhận thu chi
-                  </button>
-                )}
+                <div className={`grid gap-2 ${canEditFinance ? "sm:grid-cols-2" : ""}`}>{canEditFinance ? <button onClick={() => setPaymentModalOpen(true)} className="rounded-2xl border-2 border-dashed border-gray-200 py-4 flex items-center justify-center gap-2 text-sm font-semibold text-gray-500 hover:border-[#1a3a8a] hover:text-[#1a3a8a] transition-colors"><Plus size={16} /> Ghi nhận thu chi</button> : null}<button onClick={() => navigate("finance", { caseId })} className="rounded-2xl border border-[rgba(198,152,53,0.25)] bg-[rgba(255,245,220,0.5)] py-4 text-sm font-bold text-[var(--gold-700)]">Xem Thu chi tổng</button></div>
               </>
             )}
           </div>

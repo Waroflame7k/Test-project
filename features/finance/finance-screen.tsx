@@ -37,6 +37,8 @@ export function FinanceScreen() {
   const [paymentType, setPaymentType] = useState<PaymentFilter>("all");
   const [query, setQuery] = useState("");
   const [entryOpen, setEntryOpen] = useState(false);
+  const scopedCaseId = typeof screenParams.caseId === "string" ? screenParams.caseId : "";
+  const scopedCase = data.cases.find((caseItem) => caseItem.id === scopedCaseId);
 
   const canViewFinance = can(currentUser.role, "view_finance");
   const canEditFinance = can(currentUser.role, "edit_finance");
@@ -45,6 +47,7 @@ export function FinanceScreen() {
     const normalizedQuery = query.trim().toLowerCase();
     return data.payments
       .filter((payment) => isInDateRange(payment.paymentDate, { from, to }))
+      .filter((payment) => !scopedCaseId || payment.caseId === scopedCaseId)
       .filter((payment) => paymentType === "all" || payment.paymentType === paymentType)
       .filter((payment) => {
         if (!normalizedQuery) return true;
@@ -55,7 +58,7 @@ export function FinanceScreen() {
           .some((value) => value?.toLowerCase().includes(normalizedQuery));
       })
       .sort((first, second) => second.paymentDate.localeCompare(first.paymentDate));
-  }, [data.cases, data.customers, data.payments, from, paymentType, query, to]);
+  }, [data.cases, data.customers, data.payments, from, paymentType, query, scopedCaseId, to]);
 
   const summary = useMemo(() => financeSummary(payments), [payments]);
   const outstandingReceivable = useMemo(
@@ -74,7 +77,7 @@ export function FinanceScreen() {
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--text-faint)]">Quản trị tài chính</p>
             <h2 className="mt-1 text-xl font-black text-[var(--text-main)]">Thu chi hồ sơ</h2>
-            <p className="mt-1 text-sm text-[var(--text-soft)]">Theo dõi khoản thu, chi và số tiền khách còn cần thanh toán theo từng hồ sơ.</p>
+            <p className="mt-1 text-sm text-[var(--text-soft)]">Theo dõi khoản thu, chi và số tiền khách còn cần thanh toán theo từng hồ sơ. Giao dịch ghi trong hồ sơ tự xuất hiện tại đây.</p>
           </div>
           {canEditFinance ? (
             <button
@@ -96,6 +99,7 @@ export function FinanceScreen() {
       </section>
 
       <section className="luxe-panel rounded-[1.5rem] p-3 md:p-5">
+        {scopedCase ? <div className="mb-3 flex items-center justify-between gap-3 rounded-xl bg-[rgba(255,245,220,0.8)] px-3 py-2 text-xs"><p className="font-bold text-[var(--text-main)]">Đang xem giao dịch: {scopedCase.caseCode}</p><button type="button" onClick={() => navigate("finance")} className="font-bold text-[var(--gold-700)]">Xem tất cả</button></div> : null}
         <div className="grid gap-2 md:grid-cols-[1fr_1fr_1.3fr]">
           <label className="block">
             <span className="mb-1 block text-xs font-semibold text-[var(--text-soft)]">Từ ngày</span>
