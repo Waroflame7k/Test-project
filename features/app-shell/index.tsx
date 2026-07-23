@@ -1,6 +1,7 @@
 "use client";
 
-import { BarChart3, Bell, ChevronLeft, ClipboardCheck, Folder, FolderOpen, Home, Sparkles, User, WalletCards } from "lucide-react";
+import { useState } from "react";
+import { Archive, BarChart3, Bell, ChevronLeft, ClipboardCheck, Folder, FolderOpen, Home, MoreHorizontal, Sparkles, User, WalletCards } from "lucide-react";
 import { AppProvider, useApp } from "@/features/app-shell/app-context";
 import { LoginScreen } from "@/features/auth/login-screen";
 import { CaseDetailScreen } from "@/features/cases/case-detail-screen";
@@ -8,6 +9,7 @@ import { CasesScreen } from "@/features/cases/cases-screen";
 import { CreateCaseWizard } from "@/features/cases/create-case-wizard";
 import { ScanReceiptScreen } from "@/features/cases/scan-receipt-screen";
 import { DashboardScreen } from "@/features/dashboard/dashboard-screen";
+import { DocumentsScreen } from "@/features/documents/documents-screen";
 import { FinanceScreen } from "@/features/finance/finance-screen";
 import { ProfileScreen } from "@/features/profile/profile-screen";
 import { ReportsScreen } from "@/features/reports/reports-screen";
@@ -15,8 +17,9 @@ import { TaskCalendarScreen } from "@/features/tasks/task-calendar-screen";
 import { TasksScreen } from "@/features/tasks/tasks-screen";
 import { ROLE_LABELS } from "@/lib/constants";
 import { can } from "@/lib/permissions";
+import { Modal } from "@/components/ui/modal";
 
-const TAB_SCREENS = ["dashboard", "cases", "tasks", "reports", "finance", "profile"] as const;
+const TAB_SCREENS = ["dashboard", "cases", "tasks", "reports", "documents", "finance", "profile"] as const;
 type TabScreen = (typeof TAB_SCREENS)[number];
 
 const TABS: { key: TabScreen; label: string; icon: React.ReactNode; activeIcon: React.ReactNode }[] = [
@@ -43,6 +46,12 @@ const TABS: { key: TabScreen; label: string; icon: React.ReactNode; activeIcon: 
     label: "Báo cáo",
     icon: <BarChart3 size={19} strokeWidth={1.75} />,
     activeIcon: <BarChart3 size={19} strokeWidth={2.2} />,
+  },
+  {
+    key: "documents",
+    label: "Tài liệu",
+    icon: <Archive size={19} strokeWidth={1.75} />,
+    activeIcon: <Archive size={19} strokeWidth={2.2} />,
   },
   {
     key: "finance",
@@ -76,6 +85,8 @@ function headerTitle(screen: string): string {
       return "Lịch công việc";
     case "reports":
       return "Báo cáo";
+    case "documents":
+      return "Quản lý tài liệu";
     case "finance":
       return "Thu chi";
     case "profile":
@@ -94,6 +105,7 @@ function activeTabFor(screen: string): TabScreen {
 
 function AppShellInner() {
   const { currentUser, currentScreen, screenParams, navigate } = useApp();
+  const [managementOpen, setManagementOpen] = useState(false);
 
   if (!currentUser) {
     return <LoginScreen />;
@@ -103,8 +115,10 @@ function AppShellInner() {
   const navigationTabs = TABS.filter((tab) => {
     if (tab.key === "reports") return can(currentUser.role, "view_reports");
     if (tab.key === "finance") return can(currentUser.role, "view_finance");
+    if (tab.key === "documents") return can(currentUser.role, "view_all_cases") || can(currentUser.role, "add_documents");
     return true;
   });
+  const managementTabs = navigationTabs.filter((tab) => ["reports", "documents", "finance"].includes(tab.key));
   const showBack =
     currentScreen === "case-detail" || currentScreen === "create-case" || currentScreen === "scan-receipt" || currentScreen === "task-calendar";
   const caseId = typeof screenParams.caseId === "string" ? screenParams.caseId : "";
@@ -185,6 +199,16 @@ function AppShellInner() {
               </h1>
             </div>
 
+            {managementTabs.length > 0 ? (
+              <button
+                onClick={() => setManagementOpen(true)}
+                className="md:hidden h-9 w-9 flex items-center justify-center rounded-full luxe-button-ghost transition-colors"
+                aria-label="Mở menu quản lý"
+              >
+                <MoreHorizontal size={19} />
+              </button>
+            ) : null}
+
             <div className="hidden md:flex items-center gap-2 shrink-0">
               <button className="w-10 h-10 flex items-center justify-center rounded-full luxe-button-ghost transition-colors">
                 <Bell size={18} />
@@ -205,6 +229,7 @@ function AppShellInner() {
           {currentScreen === "tasks" && <TasksScreen />}
           {currentScreen === "task-calendar" && <TaskCalendarScreen />}
           {currentScreen === "reports" && <ReportsScreen />}
+          {currentScreen === "documents" && <DocumentsScreen />}
           {currentScreen === "finance" && <FinanceScreen />}
           {currentScreen === "profile" && <ProfileScreen />}
         </main>
@@ -212,7 +237,7 @@ function AppShellInner() {
         {!showBack && (
           <nav className="md:hidden fixed bottom-1 left-1 right-1 z-20 safe-bottom">
             <div className="luxe-panel-strong rounded-[1rem] px-1 py-1 flex items-center justify-between">
-              {navigationTabs.filter((tab) => tab.key !== "finance").map((tab) => {
+              {navigationTabs.filter((tab) => tab.key !== "finance" && tab.key !== "documents").map((tab) => {
                 const isActive = activeTab === tab.key;
                 return (
                   <button
@@ -231,6 +256,24 @@ function AppShellInner() {
           </nav>
         )}
       </div>
+
+      <Modal open={managementOpen} onClose={() => setManagementOpen(false)} title="Quản lý">
+        <div className="space-y-2">
+          {managementTabs.map((tab) => (
+            <button
+              key={tab.key}
+              onClick={() => {
+                navigate(tab.key);
+                setManagementOpen(false);
+              }}
+              className="flex w-full items-center gap-3 rounded-xl border border-[rgba(198,152,53,0.14)] bg-white px-4 py-3 text-left transition hover:bg-[rgba(255,249,240,0.7)]"
+            >
+              <span className="text-[var(--gold-700)]">{tab.icon}</span>
+              <span className="text-sm font-bold text-[var(--text-main)]">{tab.label}</span>
+            </button>
+          ))}
+        </div>
+      </Modal>
     </div>
   );
 }
