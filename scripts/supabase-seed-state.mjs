@@ -46,19 +46,6 @@ async function main() {
     throw new Error(`Failed to seed app_state: ${appStateError.message}`);
   }
 
-  const { error: botStateError } = await supabase.from("telegram_bot_state").upsert(
-    {
-      id: "main",
-      last_update_id: 0,
-      sent_digests: {},
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: "id" }
-  );
-  if (botStateError) {
-    throw new Error(`Failed to seed telegram_bot_state: ${botStateError.message}`);
-  }
-
   console.log("Supabase seed completed successfully.");
 }
 

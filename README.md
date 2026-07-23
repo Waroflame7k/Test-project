@@ -45,10 +45,6 @@ NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
 SUPABASE_SERVICE_ROLE_KEY=
 APP_URL=http://localhost:3000
-TELEGRAM_BOT_TOKEN=
-TELEGRAM_WEBHOOK_SECRET=
-TELEGRAM_POLL_SECRET=
-TELEGRAM_POLL_INTERVAL_MS=2500
 ```
 
 Chạy migration trong `supabase/migrations/001_initial_schema.sql`, bật Auth email/password, tạo bucket Storage riêng cho tài liệu và không đưa service role key lên trình duyệt.
@@ -88,7 +84,7 @@ npm run start
 
 ## Firebase Shared Backend
 
-- App data va Telegram bot co the chia se chung du lieu qua Firestore.
+- App data duoc luu dung chung qua Firestore.
 - Neu chua dien `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, `FIREBASE_PRIVATE_KEY` thi app se fallback ve file JSON trong `data/`.
 - Seed du lieu local len Firestore:
 
@@ -96,9 +92,8 @@ npm run start
 npm run firebase:seed
 ```
 
-- Chay app va bot local:
+- Chay app local:
 
 ```bash
 npm run dev
-npm run telegram:bot
 ```

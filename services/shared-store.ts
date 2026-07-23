@@ -2,50 +2,20 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import { demoData } from "@/services/demo-data";
 import { getFirebaseAdminDb, isFirebaseConfigured } from "@/services/firebase-admin";
-import { todayIso } from "@/lib/date";
 import type {
   ActivityLog,
   AppData,
   Case,
-  Customer,
-  DocumentRecord,
   NotificationRecord,
-  Profile,
 } from "@/types/domain";
 
 const DATA_DIR = path.join(process.cwd(), "data");
 const APP_DATA_FILE = path.join(DATA_DIR, "app-data.shared.json");
-const BOT_STATE_FILE = path.join(DATA_DIR, "telegram-bot.shared.json");
 const FIRESTORE_SYSTEM_COLLECTION = "system_state";
 const FIRESTORE_APP_STATE_DOC = "app_data";
-const FIRESTORE_BOT_STATE_DOC = "telegram_bot_state";
-const FIRESTORE_SUBSCRIBERS_COLLECTION = "telegram_subscribers";
-
-export interface TelegramSubscriber {
-  chatId: string;
-  username?: string;
-  firstName?: string;
-  registeredAt: string;
-}
-
-export interface TelegramBotState {
-  lastUpdateId: number;
-  subscribers: TelegramSubscriber[];
-  sentDigests: Record<string, string>;
-}
-
-const DEFAULT_BOT_STATE: TelegramBotState = {
-  lastUpdateId: 0,
-  subscribers: [],
-  sentDigests: {},
-};
 
 function deepClone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
-}
-
-function makeId(prefix: string): string {
-  return `${prefix}-${crypto.randomUUID().slice(0, 8)}`;
 }
 
 function recordTimestamp(value: { updatedAt?: string; createdAt?: string }) {
@@ -176,80 +146,6 @@ async function writeFirestoreAppData(data: AppData): Promise<void> {
   );
 }
 
-async function readFirestoreSubscribers(): Promise<TelegramSubscriber[]> {
-  const db = getFirebaseAdminDb();
-  if (!db) {
-    return [];
-  }
-  const snapshot = await db.collection(FIRESTORE_SUBSCRIBERS_COLLECTION).get();
-  return snapshot.docs
-    .map((item) => {
-      const data = item.data();
-      return {
-        chatId: item.id,
-        username: typeof data.username === "string" ? data.username : undefined,
-        firstName: typeof data.firstName === "string" ? data.firstName : undefined,
-        registeredAt: typeof data.registeredAt === "string" ? data.registeredAt : new Date().toISOString(),
-      } satisfies TelegramSubscriber;
-    })
-    .sort((firstItem, secondItem) => firstItem.registeredAt.localeCompare(secondItem.registeredAt));
-}
-
-async function syncFirestoreSubscribers(subscribers: TelegramSubscriber[]): Promise<void> {
-  const db = getFirebaseAdminDb();
-  if (!db) {
-    throw new Error("Firebase is not configured.");
-  }
-  await Promise.all(
-    subscribers.map((subscriber) =>
-      db.collection(FIRESTORE_SUBSCRIBERS_COLLECTION).doc(subscriber.chatId).set(
-        {
-          username: subscriber.username ?? null,
-          firstName: subscriber.firstName ?? null,
-          registeredAt: subscriber.registeredAt,
-          updatedAt: new Date().toISOString(),
-        },
-        { merge: true }
-      )
-    )
-  );
-}
-
-async function readFirestoreBotState(): Promise<TelegramBotState | null> {
-  const db = getFirebaseAdminDb();
-  if (!db) {
-    return null;
-  }
-  const [stateSnapshot, subscribers] = await Promise.all([
-    db.collection(FIRESTORE_SYSTEM_COLLECTION).doc(FIRESTORE_BOT_STATE_DOC).get(),
-    readFirestoreSubscribers(),
-  ]);
-  const data = stateSnapshot.data();
-  return {
-    lastUpdateId: typeof data?.lastUpdateId === "number" ? data.lastUpdateId : 0,
-    sentDigests: (data?.sentDigests as Record<string, string> | undefined) ?? {},
-    subscribers,
-  };
-}
-
-async function writeFirestoreBotState(state: TelegramBotState): Promise<void> {
-  const db = getFirebaseAdminDb();
-  if (!db) {
-    throw new Error("Firebase is not configured.");
-  }
-  await Promise.all([
-    db.collection(FIRESTORE_SYSTEM_COLLECTION).doc(FIRESTORE_BOT_STATE_DOC).set(
-      {
-        lastUpdateId: state.lastUpdateId,
-        sentDigests: state.sentDigests,
-        updatedAt: new Date().toISOString(),
-      },
-      { merge: true }
-    ),
-    syncFirestoreSubscribers(state.subscribers),
-  ]);
-}
-
 export async function readSharedAppData(): Promise<AppData> {
   if (isFirebaseConfigured()) {
     const data = await readFirestoreAppData();
@@ -275,162 +171,4 @@ export async function upsertSharedAppData(incoming: AppData): Promise<AppData> {
   const merged = mergeAppData(current, incoming);
   await writeSharedAppData(merged);
   return merged;
-}
-
-export async function readTelegramBotState(): Promise<TelegramBotState> {
-  if (isFirebaseConfigured()) {
-    const state = await readFirestoreBotState();
-    if (!state) {
-      await writeFirestoreBotState(DEFAULT_BOT_STATE);
-      return deepClone(DEFAULT_BOT_STATE);
-    }
-    return state;
-  }
-  return readJsonFile(BOT_STATE_FILE, DEFAULT_BOT_STATE);
-}
-
-export async function writeTelegramBotState(state: TelegramBotState): Promise<void> {
-  if (isFirebaseConfigured()) {
-    await writeFirestoreBotState(state);
-    return;
-  }
-  await writeJsonFile(BOT_STATE_FILE, state);
-}
-
-export async function registerTelegramSubscriber(subscriber: TelegramSubscriber): Promise<TelegramBotState> {
-  const state = await readTelegramBotState();
-  const existing = state.subscribers.find((item) => item.chatId === subscriber.chatId);
-  const nextState: TelegramBotState = existing
-    ? {
-        ...state,
-        subscribers: state.subscribers.map((item) =>
-          item.chatId === subscriber.chatId ? { ...item, ...subscriber } : item
-        ),
-      }
-    : {
-        ...state,
-        subscribers: [...state.subscribers, subscriber],
-      };
-  await writeTelegramBotState(nextState);
-  return nextState;
-}
-
-export async function updateTelegramOffset(updateId: number): Promise<void> {
-  const state = await readTelegramBotState();
-  if (updateId <= state.lastUpdateId) return;
-  await writeTelegramBotState({ ...state, lastUpdateId: updateId });
-}
-
-export async function rememberSentDigest(key: string): Promise<void> {
-  const state = await readTelegramBotState();
-  await writeTelegramBotState({
-    ...state,
-    sentDigests: {
-      ...state.sentDigests,
-      [key]: todayIso(),
-    },
-  });
-}
-
-export async function wasDigestSentToday(key: string): Promise<boolean> {
-  const state = await readTelegramBotState();
-  return state.sentDigests[key] === todayIso();
-}
-
-export function findCaseByCode(data: AppData, caseCode: string) {
-  const normalized = caseCode.trim().toLowerCase();
-  return data.cases.find((caseItem) => caseItem.caseCode.toLowerCase() === normalized && !caseItem.archivedAt) ?? null;
-}
-
-export function primaryNotificationUsers(data: AppData): Profile[] {
-  const priorityRoles = new Set(["admin", "manager"]);
-  const selected = data.profiles.filter((profile) => profile.active && priorityRoles.has(profile.role));
-  return selected.length > 0 ? selected : data.profiles.filter((profile) => profile.active);
-}
-
-export async function addBotNotification(input: {
-  caseId?: string;
-  title: string;
-  message: string;
-  userIds: string[];
-}): Promise<NotificationRecord[]> {
-  const data = await readSharedAppData();
-  const createdAt = new Date().toISOString();
-  const notifications = input.userIds.map((userId) => ({
-    id: makeId("noti"),
-    userId,
-    caseId: input.caseId,
-    title: input.title,
-    message: input.message,
-    notificationType: "telegram",
-    createdAt,
-  }));
-  const next: AppData = {
-    ...data,
-    notifications: mergeNotifications(data.notifications, notifications),
-  };
-  await writeSharedAppData(next);
-  return notifications;
-}
-
-export async function addBotDocument(input: {
-  caseId: string;
-  documentName: string;
-  documentType: string;
-  originalOrCopy: DocumentRecord["originalOrCopy"];
-  quantity: number;
-  currentHolderId?: string;
-  fileUrl?: string;
-  notes?: string;
-  actorId: string;
-}): Promise<DocumentRecord> {
-  const data = await readSharedAppData();
-  const createdAt = new Date().toISOString();
-  const document: DocumentRecord = {
-    id: makeId("doc"),
-    caseId: input.caseId,
-    documentName: input.documentName,
-    documentType: input.documentType,
-    originalOrCopy: input.originalOrCopy,
-    quantity: input.quantity,
-    confidential: false,
-    currentHolderId: input.currentHolderId,
-    fileUrl: input.fileUrl,
-    notes: input.notes,
-    receivedDate: todayIso(),
-    createdAt,
-  };
-  const activityLog: ActivityLog = {
-    id: makeId("log"),
-    organizationId: data.organization.id,
-    caseId: input.caseId,
-    actorId: input.actorId,
-    action: "Bot Telegram thêm tài liệu",
-    entityType: "documents",
-    entityId: document.id,
-    newValue: document.documentName,
-    createdAt,
-  };
-  const next: AppData = {
-    ...data,
-    documents: mergeById(data.documents, [document]),
-    activityLogs: mergeActivityLogs(data.activityLogs, [activityLog]),
-  };
-  await writeSharedAppData(next);
-  return document;
-}
-
-export async function addBotCustomer(input: Omit<Customer, "id" | "createdAt">): Promise<Customer> {
-  const data = await readSharedAppData();
-  const customer: Customer = {
-    ...input,
-    id: makeId("cust"),
-    createdAt: new Date().toISOString(),
-  };
-  const next: AppData = {
-    ...data,
-    customers: mergeById(data.customers, [customer]),
-  };
-  await writeSharedAppData(next);
-  return customer;
 }

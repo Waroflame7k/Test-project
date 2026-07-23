@@ -11,10 +11,7 @@
     "test": "vitest",
     "test:run": "vitest run",
     "test:e2e": "playwright test",
-    "firebase:seed": "node scripts/firebase-seed-state.mjs",
-    "telegram:bot": "node scripts/telegram-bot.mjs",
-    "telegram:poll": "node scripts/telegram-poll.mjs",
-    "telegram:notify": "node scripts/telegram-notify.mjs"
+    "firebase:seed": "node scripts/firebase-seed-state.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "5.2.2",

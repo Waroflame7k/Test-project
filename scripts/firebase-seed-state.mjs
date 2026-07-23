@@ -24,7 +24,6 @@ const app = initializeApp({
 const db = getFirestore(app);
 const dataDir = path.join(process.cwd(), "data");
 const appDataPath = path.join(dataDir, "app-data.shared.json");
-const botStatePath = path.join(dataDir, "telegram-bot.shared.json");
 
 if (!existsSync(appDataPath)) {
   console.error(`Missing seed source: ${appDataPath}`);
@@ -32,43 +31,12 @@ if (!existsSync(appDataPath)) {
 }
 
 const appData = JSON.parse(readFileSync(appDataPath, "utf8"));
-const botState = existsSync(botStatePath)
-  ? JSON.parse(readFileSync(botStatePath, "utf8"))
-  : {
-      lastUpdateId: 0,
-      subscribers: [],
-      sentDigests: {},
-    };
-
 await db.collection("system_state").doc("app_data").set(
   {
     data: appData,
     updatedAt: new Date().toISOString(),
   },
   { merge: true }
-);
-
-await db.collection("system_state").doc("telegram_bot_state").set(
-  {
-    lastUpdateId: Number(botState.lastUpdateId ?? 0),
-    sentDigests: botState.sentDigests ?? {},
-    updatedAt: new Date().toISOString(),
-  },
-  { merge: true }
-);
-
-await Promise.all(
-  (botState.subscribers ?? []).map((subscriber) =>
-    db.collection("telegram_subscribers").doc(String(subscriber.chatId)).set(
-      {
-        username: subscriber.username ?? null,
-        firstName: subscriber.firstName ?? null,
-        registeredAt: subscriber.registeredAt ?? new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      },
-      { merge: true }
-    )
-  )
 );
 
 console.log("Firebase seed completed successfully.");
