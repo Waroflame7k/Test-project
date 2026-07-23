@@ -16,7 +16,6 @@ import {
   User,
 } from "lucide-react";
 import { useApp, useCurrentUser } from "@/features/app-shell/app-context";
-import { MockOCRProvider } from "@/services/ocr";
 import type { OCRResult } from "@/services/ocr";
 import { formatDate, todayIso } from "@/lib/date";
 import { formatVnd } from "@/lib/money";
@@ -67,6 +66,7 @@ export function ScanReceiptScreen() {
   const [search, setSearch] = useState("");
   const [receiptImageUrl, setReceiptImageUrl] = useState("");
   const [receiptUploadError, setReceiptUploadError] = useState("");
+  const [ocrError, setOcrError] = useState("");
   const [form, setForm] = useState<ReceiptFormState>(() => initialFormState(currentUser.fullName));
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -138,6 +138,17 @@ export function ScanReceiptScreen() {
 
     setIsProcessing(true);
     setReceiptUploadError("");
+    setOcrError("");
+    setOcrResult(null);
+    setForm((previous) => ({
+      ...previous,
+      submissionCode: "",
+      procedureType: "",
+      receivingAgency: "",
+      submittedDate: todayIso(),
+      expectedReturnDate: "",
+      applicantName: "",
+    }));
     try {
       const uploadForm = new FormData();
       uploadForm.set("file", file);
@@ -150,7 +161,15 @@ export function ScanReceiptScreen() {
         setReceiptImageUrl("");
         setReceiptUploadError(upload.error ?? "Không thể lưu ảnh biên nhận.");
       }
-      const result = await new MockOCRProvider().extractReceipt(file);
+      const ocrForm = new FormData();
+      ocrForm.set("file", file);
+      const ocrResponse = await fetch("/api/ocr/receipt", { method: "POST", body: ocrForm });
+      if (!ocrResponse.ok) {
+        const ocr = (await ocrResponse.json().catch(() => ({}))) as { error?: string };
+        setOcrError(ocr.error ?? "Không thể đọc biên nhận này.");
+        return;
+      }
+      const { result } = (await ocrResponse.json()) as { result: OCRResult };
       setOcrResult(result);
       setForm((previous) => ({
         ...previous,
@@ -174,6 +193,7 @@ export function ScanReceiptScreen() {
     setOcrResult(null);
     setReceiptImageUrl("");
     setReceiptUploadError("");
+    setOcrError("");
     if (fileInputRef.current) fileInputRef.current.value = "";
     setForm((prev) => ({
       ...prev,
@@ -354,6 +374,7 @@ export function ScanReceiptScreen() {
                     </button>
                   </div>
                 )}
+                {ocrError ? <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm font-medium text-rose-700">OCR chưa đọc được ảnh này: {ocrError}. Bạn có thể thử ảnh rõ hơn hoặc nhập tay.</div> : null}
               </div>
             )}
 

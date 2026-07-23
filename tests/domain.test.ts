@@ -6,7 +6,7 @@ import { calculateReceivable } from "@/lib/money";
 import { can } from "@/lib/permissions";
 import { currentMonthRange, financeSummary } from "@/lib/reporting";
 import { demoData } from "@/services/demo-data";
-import { MockOCRProvider } from "@/services/ocr";
+import { parseReceiptText } from "@/services/ocr";
 import { DemoRepository } from "@/services/repository";
 
 describe("nghiệp vụ hồ sơ BĐS", () => {
@@ -109,13 +109,12 @@ describe("nghiệp vụ hồ sơ BĐS", () => {
     expect(document?.returnedDate).toBe("2026-07-23");
   });
 
-  it("xác nhận OCR trước khi lưu", async () => {
-    const provider = new MockOCRProvider();
-    const result = await provider.extractReceipt(new File(["demo"], "receipt.jpg", { type: "image/jpeg" }));
-    expect(result.submissionCode).toBe("H53.183-260625-0075");
-    const repository = new DemoRepository(demoData);
-    const before = repository.getData().submissions.length;
-    expect(repository.getData().submissions.length).toBe(before);
+  it("tách dữ liệu OCR từ đúng nội dung biên nhận", () => {
+    const result = parseReceiptText("Mã hồ sơ: H24.221-010726-0075\nCấp đổi giấy chứng nhận\nHành chính công xã Đức Hòa\nHọ và tên: Nguyễn Văn A\nNgày nộp: 01/07/2026\nHẹn trả: 19/07/2026");
+    expect(result.submissionCode).toBe("H24.221-010726-0075");
+    expect(result.submittedDate).toBe("2026-07-01");
+    expect(result.expectedReturnDate).toBe("2026-07-19");
+    expect(result.applicantName).toBe("Nguyễn Văn A");
   });
 
   it("tạo cảnh báo theo rule đến hạn, quá hạn và công nợ", () => {
