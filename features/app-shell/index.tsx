@@ -96,7 +96,7 @@ function AppShellInner() {
                   <Sparkles size={12} className="text-[#c69835]" />
                 </div>
                 <div className="text-xl font-extrabold text-[#362310] leading-tight">HỒ SƠ BĐS</div>
-                <p className="text-sm text-[#8d7a5a]">Luxury legal workflow</p>
+                <p className="text-sm text-[#8d7a5a]">Quy trình hồ sơ pháp lý tinh gọn</p>
               </div>
             </div>
           </div>

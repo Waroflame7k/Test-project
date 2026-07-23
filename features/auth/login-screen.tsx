@@ -51,7 +51,7 @@ export function LoginScreen() {
           <div className="relative">
             <div className="inline-flex items-center gap-2 rounded-full px-3 py-1.5 luxe-badge text-xs font-semibold mb-6">
               <Sparkles size={14} />
-              Luxury White & Gold Experience
+              Trải nghiệm trắng vàng sang trọng
             </div>
 
             <div className="w-16 h-16 rounded-[1.4rem] gold-gradient-bg text-white flex items-center justify-center luxe-ring mb-6">
