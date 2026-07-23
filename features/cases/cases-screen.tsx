@@ -324,6 +324,21 @@ export function CasesScreen() {
     setSelectedIds(Array.from(new Set([...selectedIds, ...visibleIds])));
   }
 
+  function toggleDeliveredCases() {
+    if (showDeliveredCases) {
+      setShowDeliveredCases(false);
+      return;
+    }
+
+    setShowDeliveredCases(true);
+    window.setTimeout(() => {
+      const visibleSection = Array.from(document.querySelectorAll<HTMLElement>("[data-delivered-cases-section]")).find(
+        (element) => element.offsetParent !== null
+      );
+      visibleSection?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 0);
+  }
+
   function exitBatchMode() {
     setBatchMode(false);
     setSelectedIds([]);
@@ -542,7 +557,7 @@ export function CasesScreen() {
               <span className="text-[var(--border-strong)]">•</span>
               <button
                 type="button"
-                onClick={() => setShowDeliveredCases((previous) => !previous)}
+                onClick={toggleDeliveredCases}
                 className="inline-flex items-center gap-1 font-semibold text-[var(--gold-700)]"
               >
                 Hồ sơ đã bàn giao khách ({deliveredCount})
@@ -641,7 +656,7 @@ export function CasesScreen() {
                   return (
                     <Fragment key={caseItem.id}>
                       {showDeliveredSection ? (
-                        <tr className="border-y-2 border-[rgba(198,152,53,0.3)] bg-[rgba(255,249,238,0.94)]">
+                        <tr data-delivered-cases-section className="border-y-2 border-[rgba(198,152,53,0.3)] bg-[rgba(255,249,238,0.94)]">
                           <td colSpan={batchMode ? 9 : 8} className="px-4 py-3">
                             <div className="flex items-center gap-2">
                               <span className="font-bold text-[var(--gold-700)]">Hồ sơ đã bàn giao khách</span>
@@ -744,7 +759,7 @@ export function CasesScreen() {
             return (
               <div key={caseItem.id}>
                 {showDeliveredSection ? (
-                  <div className="flex items-center gap-2 px-1 pb-1 pt-4">
+                  <div data-delivered-cases-section className="flex items-center gap-2 px-1 pb-1 pt-4">
                     <span className="text-sm font-bold text-[var(--gold-700)]">Hồ sơ đã bàn giao khách</span>
                     <span className="rounded-full bg-[rgba(255,249,238,0.95)] px-2 py-0.5 text-[11px] font-semibold text-[var(--text-soft)]">
                       {deliveredCount}
