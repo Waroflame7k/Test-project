@@ -17,6 +17,7 @@ import {
   Circle,
   Lock,
   ArrowRightLeft,
+  Camera,
   Trash2,
 } from "lucide-react";
 import { useApp, useCurrentUser } from "@/features/app-shell/app-context";
@@ -301,16 +302,25 @@ export function CaseDetailScreen({ caseId }: { caseId: string }) {
                     <p>Hẹn trả: {formatDate(sub.expectedReturnDate)}</p>
                     {sub.officerNote && <p className="text-orange-600">Ghi chú: {sub.officerNote}</p>}
                   </div>
+                  {sub.receiptImageUrl ? <a href={sub.receiptImageUrl} target="_blank" rel="noreferrer" className="mt-3 block"><img src={sub.receiptImageUrl} alt={`Biên nhận ${sub.submissionCode}`} className="max-h-56 w-full rounded-xl border border-gray-100 object-contain bg-gray-50" /></a> : <p className="mt-3 text-xs text-gray-400">Chưa có ảnh biên nhận</p>}
                 </div>
               ))
             )}
             {canAddSubmission && (
-              <button
-                onClick={() => setSubmissionModalOpen(true)}
-                className="w-full border-2 border-dashed border-gray-200 rounded-2xl py-4 flex items-center justify-center gap-2 text-sm font-semibold text-gray-400 hover:border-[#1a3a8a] hover:text-[#1a3a8a] transition-colors"
-              >
-                <Plus size={16} /> Thêm lần nộp
-              </button>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <button
+                  onClick={() => navigate("scan-receipt", { caseId })}
+                  className="rounded-2xl border-2 border-dashed border-emerald-200 bg-emerald-50/50 py-4 flex items-center justify-center gap-2 text-sm font-bold text-emerald-700 hover:border-emerald-400 transition-colors"
+                >
+                  <Camera size={16} /> Quét biên nhận
+                </button>
+                <button
+                  onClick={() => setSubmissionModalOpen(true)}
+                  className="rounded-2xl border-2 border-dashed border-gray-200 py-4 flex items-center justify-center gap-2 text-sm font-semibold text-gray-500 hover:border-[#1a3a8a] hover:text-[#1a3a8a] transition-colors"
+                >
+                  <Plus size={16} /> Thêm lần nộp tay
+                </button>
+              </div>
             )}
           </div>
         )}

@@ -1,6 +1,8 @@
 import "server-only";
 import { cert, getApps, initializeApp, type App } from "firebase-admin/app";
 import { getFirestore, type Firestore } from "firebase-admin/firestore";
+import { getStorage } from "firebase-admin/storage";
+import type { Bucket } from "@google-cloud/storage";
 
 function requiredFirebaseEnv() {
   return {
@@ -17,6 +19,7 @@ export function isFirebaseConfigured() {
 
 let firebaseApp: App | null = null;
 let firestoreInstance: Firestore | null = null;
+let storageBucketInstance: Bucket | null = null;
 
 export function getFirebaseAdminApp() {
   if (!isFirebaseConfigured()) {
@@ -46,4 +49,12 @@ export function getFirebaseAdminDb() {
     firestoreInstance = getFirestore(app);
   }
   return firestoreInstance;
+}
+
+export function getFirebaseAdminStorageBucket() {
+  const app = getFirebaseAdminApp();
+  const bucketName = process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET?.trim();
+  if (!app || !bucketName) return null;
+  if (!storageBucketInstance) storageBucketInstance = getStorage(app).bucket(bucketName);
+  return storageBucketInstance;
 }

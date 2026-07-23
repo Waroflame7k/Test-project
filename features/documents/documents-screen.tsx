@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Archive, FileText, Search, UserRound } from "lucide-react";
+import { Archive, CircleCheck, FileText, Search, UserRound } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useApp, useCurrentUser } from "@/features/app-shell/app-context";
 import { formatDate } from "@/lib/date";
@@ -15,7 +15,7 @@ function isHandedToCustomer(document: { returnedDate?: string }, latestTransfer?
 }
 
 export function DocumentsScreen() {
-  const { data, navigate } = useApp();
+  const { data, navigate, addCustodyTransfer } = useApp();
   const currentUser = useCurrentUser();
   const [filter, setFilter] = useState<DocumentFilter>("original");
   const [custodyFilter, setCustodyFilter] = useState<CustodyFilter>("all");
@@ -78,6 +78,19 @@ export function DocumentsScreen() {
     return <EmptyState title="Không có quyền quản lý tài liệu" message="Chức năng này dành cho quản trị, quản lý và nhân viên pháp lý." />;
   }
 
+  function confirmHolding(document: { id: string; currentHolderId?: string; returnedDate?: string }) {
+    const latestTransfer = latestTransferByDocumentId.get(document.id);
+    if (isHandedToCustomer(document, latestTransfer) || document.currentHolderId === currentUser.id) return;
+    addCustodyTransfer({
+      documentId: document.id,
+      fromUserId: document.currentHolderId,
+      toUserId: currentUser.id,
+      transferType: document.currentHolderId ? "Bàn giao nội bộ" : "Nhận từ khách",
+      transferredAt: new Date().toISOString(),
+      createdBy: currentUser.id,
+    });
+  }
+
   return (
     <div className="space-y-4 pb-6 md:space-y-6">
       <section className="luxe-panel-strong rounded-[1.5rem] p-4 md:p-5">
@@ -89,7 +102,7 @@ export function DocumentsScreen() {
 
       <section className="luxe-panel overflow-hidden rounded-[1.5rem]">
         <div className="border-b luxe-divider px-4 py-3 md:px-5"><p className="text-sm font-bold text-[var(--text-main)]">{documents.length} tài liệu hiển thị</p></div>
-        {documents.length === 0 ? <div className="p-4"><EmptyState title="Chưa có tài liệu phù hợp" message="Thử đổi bộ lọc hoặc thêm tài liệu trong chi tiết hồ sơ." /></div> : <><div className="divide-y divide-[rgba(198,152,53,0.1)] md:hidden">{documents.map((document) => <DocumentRow key={document.id} document={document} data={data} onOpen={() => navigate("case-detail", { caseId: document.caseId })} compact />)}</div><table className="hidden w-full text-sm md:table"><thead className="bg-[rgba(251,246,236,0.7)] text-left text-xs font-semibold uppercase tracking-[0.12em] text-[var(--text-faint)]"><tr><th className="px-5 py-3">Tài liệu</th><th className="px-5 py-3">Hồ sơ</th><th className="px-5 py-3">Người đang giữ</th><th className="px-5 py-3">Vị trí / lần giao gần nhất</th></tr></thead><tbody className="divide-y divide-[rgba(198,152,53,0.1)]">{documents.map((document) => <DocumentRow key={document.id} document={document} data={data} onOpen={() => navigate("case-detail", { caseId: document.caseId })} />)}</tbody></table></>}
+        {documents.length === 0 ? <div className="p-4"><EmptyState title="Chưa có tài liệu phù hợp" message="Thử đổi bộ lọc hoặc thêm tài liệu trong chi tiết hồ sơ." /></div> : <><div className="divide-y divide-[rgba(198,152,53,0.1)] md:hidden">{documents.map((document) => <DocumentRow key={document.id} document={document} data={data} onOpen={() => navigate("case-detail", { caseId: document.caseId })} onConfirmHolding={() => confirmHolding(document)} currentUserId={currentUser.id} compact />)}</div><table className="hidden w-full text-sm md:table"><thead className="bg-[rgba(251,246,236,0.7)] text-left text-xs font-semibold uppercase tracking-[0.12em] text-[var(--text-faint)]"><tr><th className="px-5 py-3">Tài liệu</th><th className="px-5 py-3">Hồ sơ</th><th className="px-5 py-3">Người đang giữ</th><th className="px-5 py-3">Vị trí / lần giao gần nhất</th><th className="px-5 py-3"></th></tr></thead><tbody className="divide-y divide-[rgba(198,152,53,0.1)]">{documents.map((document) => <DocumentRow key={document.id} document={document} data={data} onOpen={() => navigate("case-detail", { caseId: document.caseId })} onConfirmHolding={() => confirmHolding(document)} currentUserId={currentUser.id} />)}</tbody></table></>}
       </section>
     </div>
   );
@@ -99,13 +112,14 @@ function DocumentStat({ label, value, tone }: { label: string; value: number; to
   return <div className="rounded-xl border border-[rgba(198,152,53,0.12)] bg-white px-2 py-2"><p className="text-[10px] font-semibold text-[var(--text-soft)]">{label}</p><p className={`mt-1 text-lg font-black ${tone}`}>{value}</p></div>;
 }
 
-function DocumentRow({ document, data, onOpen, compact = false }: { document: { id: string; caseId: string; documentName: string; documentType: string; originalOrCopy: "Bản chính" | "Bản sao" | "Bản scan"; currentHolderId?: string; storageLocation?: string; returnedDate?: string }; data: ReturnType<typeof useApp>["data"]; onOpen: () => void; compact?: boolean }) {
+function DocumentRow({ document, data, onOpen, onConfirmHolding, currentUserId, compact = false }: { document: { id: string; caseId: string; documentName: string; documentType: string; originalOrCopy: "Bản chính" | "Bản sao" | "Bản scan"; currentHolderId?: string; storageLocation?: string; returnedDate?: string }; data: ReturnType<typeof useApp>["data"]; onOpen: () => void; onConfirmHolding: () => void; currentUserId: string; compact?: boolean }) {
   const caseItem = data.cases.find((item) => item.id === document.caseId);
   const customer = data.customers.find((item) => item.id === caseItem?.customerId);
   const holder = data.profiles.find((item) => item.id === document.currentHolderId);
   const latestTransfer = data.custodyTransfers.filter((transfer) => transfer.documentId === document.id).sort((first, second) => second.transferredAt.localeCompare(first.transferredAt))[0];
   const original = document.originalOrCopy === "Bản chính";
   const handedToCustomer = isHandedToCustomer(document, latestTransfer);
-  if (compact) return <button onClick={onOpen} className="w-full p-4 text-left"><div className="flex items-start gap-3"><div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${original ? "bg-amber-50 text-amber-700" : "bg-slate-100 text-slate-600"}`}><FileText size={18} /></div><div className="min-w-0 flex-1"><div className="flex items-start justify-between gap-2"><p className="truncate text-sm font-bold text-[var(--text-main)]">{document.documentName}</p><span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold ${original ? "bg-amber-50 text-amber-700" : "bg-slate-100 text-slate-600"}`}>{document.originalOrCopy}</span></div><p className="mt-1 truncate text-xs text-[var(--text-soft)]">{caseItem?.caseCode} · {customer?.fullName ?? "Chưa xác định"}</p><p className={`mt-2 text-xs font-semibold ${handedToCustomer ? "text-emerald-700" : "text-[var(--text-main)]"}`}>{handedToCustomer ? "Đã bàn giao khách" : `Người giữ: ${holder?.fullName ?? "Chưa cập nhật"}`}</p></div></div></button>;
-  return <tr onClick={onOpen} className="cursor-pointer transition hover:bg-[rgba(255,249,240,0.5)]"><td className="px-5 py-3"><p className="font-bold text-[var(--text-main)]">{document.documentName}</p><p className="mt-1 text-xs text-[var(--text-soft)]">{document.documentType} · <span className={original ? "font-bold text-amber-700" : ""}>{document.originalOrCopy}</span></p></td><td className="px-5 py-3"><p className="font-semibold text-[var(--text-main)]">{caseItem?.caseCode ?? "Không có mã"}</p><p className="mt-1 text-xs text-[var(--text-soft)]">{customer?.fullName ?? "Chưa xác định"}</p></td><td className="px-5 py-3"><p className={`inline-flex items-center gap-1.5 font-semibold ${handedToCustomer ? "text-emerald-700" : "text-[var(--text-main)]"}`}>{handedToCustomer ? "Đã bàn giao khách" : <><UserRound size={14} className="text-[var(--gold-700)]" />{holder?.fullName ?? "Chưa cập nhật"}</>}</p></td><td className="px-5 py-3 text-xs text-[var(--text-soft)]"><p>{document.storageLocation ?? "Chưa cập nhật vị trí"}</p><p className="mt-1">Giao gần nhất: {latestTransfer ? formatDate(latestTransfer.transferredAt) : "Chưa có"}</p></td></tr>;
+  const canConfirmHolding = !handedToCustomer && document.currentHolderId !== currentUserId;
+  if (compact) return <div className="p-4"><button onClick={onOpen} className="w-full text-left"><div className="flex items-start gap-3"><div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${original ? "bg-amber-50 text-amber-700" : "bg-slate-100 text-slate-600"}`}><FileText size={18} /></div><div className="min-w-0 flex-1"><div className="flex items-start justify-between gap-2"><p className="truncate text-sm font-bold text-[var(--text-main)]">{document.documentName}</p><span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold ${original ? "bg-amber-50 text-amber-700" : "bg-slate-100 text-slate-600"}`}>{document.originalOrCopy}</span></div><p className="mt-1 truncate text-xs text-[var(--text-soft)]">{caseItem?.caseCode} · {customer?.fullName ?? "Chưa xác định"}</p><p className={`mt-2 text-xs font-semibold ${handedToCustomer ? "text-emerald-700" : "text-[var(--text-main)]"}`}>{handedToCustomer ? "Đã bàn giao khách" : `Người giữ: ${holder?.fullName ?? "Chưa cập nhật"}`}</p></div></div></button>{canConfirmHolding ? <button type="button" onClick={onConfirmHolding} className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-700"><CircleCheck size={15} /> Tôi đang giữ</button> : null}</div>;
+  return <tr onClick={onOpen} className="cursor-pointer transition hover:bg-[rgba(255,249,240,0.5)]"><td className="px-5 py-3"><p className="font-bold text-[var(--text-main)]">{document.documentName}</p><p className="mt-1 text-xs text-[var(--text-soft)]">{document.documentType} · <span className={original ? "font-bold text-amber-700" : ""}>{document.originalOrCopy}</span></p></td><td className="px-5 py-3"><p className="font-semibold text-[var(--text-main)]">{caseItem?.caseCode ?? "Không có mã"}</p><p className="mt-1 text-xs text-[var(--text-soft)]">{customer?.fullName ?? "Chưa xác định"}</p></td><td className="px-5 py-3"><p className={`inline-flex items-center gap-1.5 font-semibold ${handedToCustomer ? "text-emerald-700" : "text-[var(--text-main)]"}`}>{handedToCustomer ? "Đã bàn giao khách" : <><UserRound size={14} className="text-[var(--gold-700)]" />{holder?.fullName ?? "Chưa cập nhật"}</>}</p></td><td className="px-5 py-3 text-xs text-[var(--text-soft)]"><p>{document.storageLocation ?? "Chưa cập nhật vị trí"}</p><p className="mt-1">Giao gần nhất: {latestTransfer ? formatDate(latestTransfer.transferredAt) : "Chưa có"}</p></td><td className="px-5 py-3 text-right">{canConfirmHolding ? <button type="button" onClick={(event) => { event.stopPropagation(); onConfirmHolding(); }} className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-700"><CircleCheck size={15} /> Tôi đang giữ</button> : null}</td></tr>;
 }

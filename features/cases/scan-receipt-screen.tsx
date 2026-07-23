@@ -55,15 +55,18 @@ const initialFormState = (submittedBy: string): ReceiptFormState => ({
 });
 
 export function ScanReceiptScreen() {
-  const { data, navigate, updateCase, addSubmission, addActivityLog } = useApp();
+  const { data, navigate, screenParams, updateCase, addSubmission, addActivityLog } = useApp();
   const currentUser = useCurrentUser();
+  const linkedCaseId = typeof screenParams.caseId === "string" ? screenParams.caseId : "";
 
   const [stepIndex, setStepIndex] = useState(0);
   const [entryMode, setEntryMode] = useState<EntryMode>("ocr");
   const [isProcessing, setIsProcessing] = useState(false);
   const [ocrResult, setOcrResult] = useState<OCRResult | null>(null);
-  const [selectedCaseId, setSelectedCaseId] = useState("");
+  const [selectedCaseId, setSelectedCaseId] = useState(linkedCaseId);
   const [search, setSearch] = useState("");
+  const [receiptImageUrl, setReceiptImageUrl] = useState("");
+  const [receiptUploadError, setReceiptUploadError] = useState("");
   const [form, setForm] = useState<ReceiptFormState>(() => initialFormState(currentUser.fullName));
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -118,7 +121,7 @@ export function ScanReceiptScreen() {
 
   const suggestedCaseId =
     !selectedCaseId && ocrResult && suggestedCases[0]?.score > 0 ? suggestedCases[0].caseItem.id : "";
-  const activeCaseId = selectedCaseId || suggestedCaseId;
+  const activeCaseId = linkedCaseId || selectedCaseId || suggestedCaseId;
   const activeAssigneeId = form.assignedTo || assignableProfiles[0]?.id || "";
   const selectedCase = availableCases.find((caseItem) => caseItem.id === activeCaseId) ?? null;
   const selectedCustomer = selectedCase
@@ -134,7 +137,19 @@ export function ScanReceiptScreen() {
     if (!file) return;
 
     setIsProcessing(true);
+    setReceiptUploadError("");
     try {
+      const uploadForm = new FormData();
+      uploadForm.set("file", file);
+      const uploadResponse = await fetch("/api/receipts/upload", { method: "POST", body: uploadForm });
+      if (uploadResponse.ok) {
+        const upload = (await uploadResponse.json()) as { url: string };
+        setReceiptImageUrl(upload.url);
+      } else {
+        const upload = (await uploadResponse.json().catch(() => ({}))) as { error?: string };
+        setReceiptImageUrl("");
+        setReceiptUploadError(upload.error ?? "Không thể lưu ảnh biên nhận.");
+      }
       const result = await new MockOCRProvider().extractReceipt(file);
       setOcrResult(result);
       setForm((previous) => ({
@@ -148,7 +163,7 @@ export function ScanReceiptScreen() {
         submittedBy: result.submittedBy || previous.submittedBy,
       }));
       setEntryMode("ocr");
-      setSelectedCaseId("");
+      if (!linkedCaseId) setSelectedCaseId("");
       setStepIndex(0);
     } finally {
       setIsProcessing(false);
@@ -157,6 +172,8 @@ export function ScanReceiptScreen() {
 
   function resetOcr() {
     setOcrResult(null);
+    setReceiptImageUrl("");
+    setReceiptUploadError("");
     if (fileInputRef.current) fileInputRef.current.value = "";
     setForm((prev) => ({
       ...prev,
@@ -202,6 +219,7 @@ export function ScanReceiptScreen() {
       submittedBy: form.submittedBy.trim() || currentUser.fullName,
       applicantName: form.applicantName.trim(),
       officerNote: form.note.trim() || undefined,
+      receiptImageUrl: receiptImageUrl || undefined,
       status: SUBMITTED_STATUS,
     });
 
@@ -294,7 +312,7 @@ export function ScanReceiptScreen() {
                   <input
                     ref={fileInputRef}
                     type="file"
-                    accept="image/*,.pdf"
+                    accept="image/*"
                     className="hidden"
                     onChange={handleFileChange}
                   />
@@ -310,7 +328,7 @@ export function ScanReceiptScreen() {
                       <p className="text-sm font-semibold text-gray-700">
                         {isProcessing ? "Đang quét biên nhận..." : "Chụp ảnh hoặc chọn biên nhận"}
                       </p>
-                      <p className="text-xs text-gray-400 mt-1">JPG, PNG, PDF · OCR sẽ tự nhận khách hàng và thông tin nộp hồ sơ</p>
+                      <p className="text-xs text-gray-400 mt-1">JPG, PNG · OCR sẽ tự nhận khách hàng và thông tin nộp hồ sơ</p>
                     </div>
                   </div>
                 </label>
@@ -326,6 +344,8 @@ export function ScanReceiptScreen() {
                       <p>Thủ tục: {ocrResult.procedureType}</p>
                       <p>Mã biên nhận: {ocrResult.submissionCode}</p>
                     </div>
+                    {receiptImageUrl ? <img src={receiptImageUrl} alt="Biên nhận đã quét" className="max-h-52 w-full rounded-xl border border-green-200 object-contain bg-white" /> : null}
+                    {receiptUploadError ? <p className="text-xs font-medium text-amber-700">Ảnh chưa lưu được: {receiptUploadError}</p> : null}
                     <button
                       onClick={resetOcr}
                       className="text-xs font-semibold text-green-700 hover:text-green-900 transition-colors"
