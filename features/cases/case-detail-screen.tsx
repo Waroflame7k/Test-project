@@ -804,6 +804,7 @@ export function CaseDetailScreen({ caseId }: { caseId: string }) {
       <PaymentModal
         open={paymentModalOpen}
         onClose={() => setPaymentModalOpen(false)}
+        serviceFee={caseItem.serviceFee}
         onSubmit={(values) => {
           addPayment({ ...values, caseId, createdBy: currentUser.id });
           setPaymentModalOpen(false);
@@ -1037,10 +1038,12 @@ function TaskModal({
 function PaymentModal({
   open,
   onClose,
+  serviceFee,
   onSubmit,
 }: {
   open: boolean;
   onClose: () => void;
+  serviceFee: number;
   onSubmit: (values: {
     paymentType: PaymentType;
     category: string;
@@ -1073,6 +1076,7 @@ function PaymentModal({
             </button>
           ))}
         </div>
+        {paymentType === "Thu" ? <button type="button" onClick={() => { setCategory("Phí dịch vụ"); setAmount(String(serviceFee)); }} className="flex w-full items-center justify-between rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-sm font-bold text-emerald-800"><span>Điền phí dịch vụ hồ sơ</span><span>{formatVnd(serviceFee)}</span></button> : null}
         <input
           className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm"
           placeholder="Hạng mục"

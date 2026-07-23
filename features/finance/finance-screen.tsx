@@ -221,7 +221,7 @@ function FinanceEntryModal({
 }: {
   open: boolean;
   onClose: () => void;
-  cases: Array<{ id: string; caseCode: string; customerId: string }>;
+  cases: Array<{ id: string; caseCode: string; customerId: string; serviceFee: number }>;
   customers: Array<{ id: string; fullName: string }>;
   onSubmit: (entry: { caseId: string; paymentType: PaymentType; category: string; amount: number; paymentDate: string; paymentMethod: "Tiền mặt" | "Chuyển khoản" | "Khác"; note?: string }) => void;
 }) {
@@ -232,6 +232,7 @@ function FinanceEntryModal({
   const [paymentDate, setPaymentDate] = useState(todayIso());
   const [paymentMethod, setPaymentMethod] = useState<"Tiền mặt" | "Chuyển khoản" | "Khác">("Tiền mặt");
   const [note, setNote] = useState("");
+  const selectedCase = cases.find((caseItem) => caseItem.id === caseId);
 
   function submit() {
     const numericAmount = Number(amount.replaceAll(",", ""));
@@ -244,6 +245,7 @@ function FinanceEntryModal({
       <div className="space-y-3">
         <label className="block"><span className="mb-1 block text-xs font-semibold text-[var(--text-soft)]">Hồ sơ</span><select value={caseId} onChange={(event) => setCaseId(event.target.value)} className="luxe-input w-full rounded-xl px-3 py-2.5 text-sm outline-none"><option value="">Chọn hồ sơ</option>{cases.map((caseItem) => <option key={caseItem.id} value={caseItem.id}>{caseItem.caseCode} · {customers.find((customer) => customer.id === caseItem.customerId)?.fullName ?? "Chưa xác định"}</option>)}</select></label>
         <div className="grid grid-cols-2 gap-2">{(["Thu", "Chi"] as PaymentType[]).map((type) => <button key={type} type="button" onClick={() => setPaymentType(type)} className={`rounded-xl px-2 py-2 text-xs font-bold ${paymentType === type ? "luxe-button-primary" : "luxe-button-secondary"}`}>{type}</button>)}</div>
+        {paymentType === "Thu" && selectedCase ? <button type="button" onClick={() => { setCategory("Phí dịch vụ"); setAmount(String(selectedCase.serviceFee)); }} className="flex w-full items-center justify-between rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-left text-sm font-bold text-emerald-800"><span>Điền phí dịch vụ hồ sơ</span><span>{formatVnd(selectedCase.serviceFee)}</span></button> : null}
         <div className="grid gap-3 sm:grid-cols-2"><label className="block"><span className="mb-1 block text-xs font-semibold text-[var(--text-soft)]">Nội dung</span><input value={category} onChange={(event) => setCategory(event.target.value)} className="luxe-input w-full rounded-xl px-3 py-2.5 text-sm outline-none" /></label><label className="block"><span className="mb-1 block text-xs font-semibold text-[var(--text-soft)]">Số tiền</span><input inputMode="numeric" value={amount} onChange={(event) => setAmount(event.target.value)} className="luxe-input w-full rounded-xl px-3 py-2.5 text-sm outline-none" /></label></div>
         <div className="grid gap-3 sm:grid-cols-2"><label className="block"><span className="mb-1 block text-xs font-semibold text-[var(--text-soft)]">Ngày giao dịch</span><input type="date" value={paymentDate} onChange={(event) => setPaymentDate(event.target.value)} className="luxe-input w-full rounded-xl px-3 py-2.5 text-sm outline-none" /></label><label className="block"><span className="mb-1 block text-xs font-semibold text-[var(--text-soft)]">Phương thức</span><select value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value as typeof paymentMethod)} className="luxe-input w-full rounded-xl px-3 py-2.5 text-sm outline-none"><option>Tiền mặt</option><option>Chuyển khoản</option><option>Khác</option></select></label></div>
         <label className="block"><span className="mb-1 block text-xs font-semibold text-[var(--text-soft)]">Ghi chú</span><textarea value={note} onChange={(event) => setNote(event.target.value)} rows={2} className="luxe-input w-full rounded-xl px-3 py-2.5 text-sm outline-none" /></label>
