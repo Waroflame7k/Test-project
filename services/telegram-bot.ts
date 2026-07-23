@@ -92,10 +92,7 @@ async function telegramApi<T>(method: string, payload?: Record<string, unknown>)
 
 export function verifyTelegramWebhookSecret(request: Request) {
   const configured = getTelegramWebhookSecret();
-  if (!configured) {
-    return true;
-  }
-  return request.headers.get("x-telegram-bot-api-secret-token") === configured;
+  return Boolean(configured) && request.headers.get("x-telegram-bot-api-secret-token") === configured;
 }
 
 export async function sendTelegramMessage(chatId: string, text: string) {
@@ -225,14 +222,20 @@ async function handleNotify(commandBody: string) {
     return `Khong tim thay ho so ${caseCode}.`;
   }
   const message = messageParts.join(" | ");
-  const targetUsers = primaryNotificationUsers(data);
+  const targetUsers = data.profiles;
   await addBotNotification({
     caseId: caseItem.id,
     title: `Thong bao ho so ${caseItem.caseCode}`,
     message,
     userIds: targetUsers.map((item) => item.id),
   });
-  return `Da tao thong bao cho ${caseItem.caseCode}.`;
+  const state = await readTelegramBotState();
+  const telegramText = [`[THÔNG BÁO] ${caseItem.caseCode}`, message].join("\n");
+  const results = await Promise.allSettled(
+    state.subscribers.map((subscriber) => sendTelegramMessage(subscriber.chatId, telegramText)),
+  );
+  const sentToTelegram = results.filter((result) => result.status === "fulfilled").length;
+  return `Đã tạo thông báo cho ${caseItem.caseCode} và gửi ${sentToTelegram}/${state.subscribers.length} tài khoản Telegram.`;
 }
 
 async function handleDocument(commandBody: string, message?: TelegramMessage) {
@@ -368,10 +371,10 @@ export async function dispatchDueCaseNotifications() {
       `Trang thai: ${caseItem.status}`,
       `Hen tra: ${caseItem.promisedDate}`,
     ].join("\n");
-    for (const subscriber of state.subscribers) {
-      await sendTelegramMessage(subscriber.chatId, text);
-      sent += 1;
-    }
+    const results = await Promise.allSettled(
+      state.subscribers.map((subscriber) => sendTelegramMessage(subscriber.chatId, text)),
+    );
+    sent += results.filter((result) => result.status === "fulfilled").length;
     await rememberSentDigest(digestKey);
   }
   return { ok: true, sent };
