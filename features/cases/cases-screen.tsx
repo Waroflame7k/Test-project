@@ -4,6 +4,7 @@ import { Fragment, useCallback, useDeferredValue, useMemo, useState } from "reac
 import {
   AlertTriangle,
   Calendar,
+  ChevronDown,
   CheckSquare,
   FileText,
   Plus,
@@ -34,12 +35,13 @@ interface AdvancedFilters {
 }
 
 type FilterKey = "all" | "active" | "waiting-receipt" | "due-soon" | "overdue";
-type SortMode = "deadline" | "status" | "customer" | "fee" | "received" | "receiving-agency";
+type SortMode = "deadline" | "status" | "customer" | "service" | "fee" | "received" | "receiving-agency";
 
 const SORT_LABELS: Record<SortMode, string> = {
   deadline: "Hẹn trả",
   status: "Trạng thái",
   customer: "Khách hàng",
+  service: "Dịch vụ",
   fee: "Phí dịch vụ",
   received: "Ngày tạo",
   "receiving-agency": "Nơi nộp",
@@ -73,6 +75,36 @@ function compareReceivingAgency(first: string, second: string) {
   if (first === "Chưa có biên nhận") return 1;
   if (second === "Chưa có biên nhận") return -1;
   return first.localeCompare(second, "vi");
+}
+
+function SortableColumnHeader({
+  label,
+  mode,
+  activeMode,
+  onSort,
+}: {
+  label: string;
+  mode: SortMode;
+  activeMode: SortMode;
+  onSort: (mode: SortMode) => void;
+}) {
+  const isActive = activeMode === mode;
+
+  return (
+    <th className="px-4 py-3 text-left">
+      <button
+        type="button"
+        onClick={() => onSort(mode)}
+        aria-pressed={isActive}
+        className={`inline-flex items-center gap-1 text-xs font-semibold uppercase tracking-[0.14em] transition ${
+          isActive ? "text-[var(--gold-700)]" : "text-[var(--text-faint)] hover:text-[var(--text-main)]"
+        }`}
+      >
+        {label}
+        {isActive ? <ChevronDown size={14} strokeWidth={2.5} /> : null}
+      </button>
+    </th>
+  );
 }
 
 export function CasesScreen() {
@@ -199,6 +231,8 @@ export function CasesScreen() {
             customerMap.get(secondCase.customerId)?.fullName ?? ""
           )
         );
+      case "service":
+        return sorted.sort((firstCase, secondCase) => firstCase.serviceType.localeCompare(secondCase.serviceType, "vi"));
       case "fee":
         return sorted.sort((firstCase, secondCase) => secondCase.serviceFee - firstCase.serviceFee);
       case "received":
@@ -375,11 +409,11 @@ export function CasesScreen() {
             />
           </div>
 
-          <div className="grid grid-cols-[1fr_auto] gap-2 md:gap-3 xl:w-[360px]">
+          <div className="flex gap-2 md:justify-end md:gap-3">
             <select
               value={sortMode}
               onChange={(event) => setSortMode(event.target.value as SortMode)}
-              className="luxe-input rounded-xl px-3 py-2.5 text-xs outline-none md:rounded-2xl md:px-4 md:py-3 md:text-sm"
+              className="luxe-input min-w-0 flex-1 rounded-xl px-3 py-2.5 text-xs outline-none md:hidden"
             >
               {(Object.keys(SORT_LABELS) as SortMode[]).map((mode) => (
                 <option key={mode} value={mode}>
@@ -544,10 +578,11 @@ export function CasesScreen() {
               <thead className="bg-[rgba(251,246,236,0.7)]">
                 <tr className="border-b border-[rgba(198,152,53,0.1)] text-left">
                   {batchMode ? <th className="px-4 py-3 w-12" /> : null}
-                  <th className="px-4 py-3 text-xs font-semibold uppercase tracking-[0.14em] text-[var(--text-faint)]">Khách hàng</th>
-                  <th className="px-4 py-3 text-xs font-semibold uppercase tracking-[0.14em] text-[var(--text-faint)]">Dịch vụ</th>
-                  <th className="px-4 py-3 text-xs font-semibold uppercase tracking-[0.14em] text-[var(--text-faint)]">Trạng thái</th>
-                  <th className="px-4 py-3 text-xs font-semibold uppercase tracking-[0.14em] text-[var(--text-faint)]">Hẹn trả</th>
+                  <SortableColumnHeader label="Khách hàng" mode="customer" activeMode={sortMode} onSort={setSortMode} />
+                  <SortableColumnHeader label="Dịch vụ" mode="service" activeMode={sortMode} onSort={setSortMode} />
+                  <SortableColumnHeader label="Trạng thái" mode="status" activeMode={sortMode} onSort={setSortMode} />
+                  <SortableColumnHeader label="Hẹn trả" mode="deadline" activeMode={sortMode} onSort={setSortMode} />
+                  <SortableColumnHeader label="Nơi nộp" mode="receiving-agency" activeMode={sortMode} onSort={setSortMode} />
                   <th className="px-4 py-3 text-xs font-semibold uppercase tracking-[0.14em] text-[var(--text-faint)]">Phụ trách</th>
                   <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-[0.14em] text-[var(--text-faint)]">Phí</th>
                   <th className="px-4 py-3 text-xs font-semibold uppercase tracking-[0.14em] text-[var(--text-faint)]">Biên nhận</th>
@@ -571,7 +606,7 @@ export function CasesScreen() {
                     <Fragment key={caseItem.id}>
                       {showAgencyGroup ? (
                         <tr className="border-y border-[rgba(198,152,53,0.12)] bg-[rgba(251,246,236,0.78)]">
-                          <td colSpan={batchMode ? 8 : 7} className="px-4 py-2.5">
+                          <td colSpan={batchMode ? 9 : 8} className="px-4 py-2.5">
                             <span className="font-semibold text-[var(--text-main)]">{receivingAgency}</span>
                             <span className="ml-2 rounded-full bg-white px-2 py-0.5 text-xs font-semibold text-[var(--text-soft)]">
                               {receivingAgencyCounts.get(receivingAgency)}
@@ -614,6 +649,8 @@ export function CasesScreen() {
                           <span className="text-[var(--text-soft)]">Chưa hẹn trả</span>
                         )}
                       </td>
+
+                      <td className="px-4 py-3 text-[var(--text-main)]">{receivingAgency}</td>
 
                       <td className="px-4 py-3 text-[var(--text-main)]">{assignedProfile?.fullName ?? "Chưa phân công"}</td>
                       <td className="px-4 py-3 text-right font-semibold text-[var(--text-main)]">{formatVnd(caseItem.serviceFee)}</td>
