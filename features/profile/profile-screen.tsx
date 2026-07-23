@@ -4,6 +4,7 @@ import { useState } from "react";
 import { LogOut, Building2, Shield, CheckCircle2, FileText, Bell } from "lucide-react";
 import { useApp, useCurrentUser } from "@/features/app-shell/app-context";
 import { ROLE_LABELS } from "@/lib/constants";
+import { requestPushToken } from "@/services/firebase-messaging";
 
 export function ProfileScreen() {
   const { data, logout } = useApp();
@@ -28,31 +29,34 @@ export function ProfileScreen() {
     .toUpperCase();
 
   async function sendTestNotification() {
-    if (!("Notification" in window)) {
-      setNotificationMessage("Thiết bị này chưa hỗ trợ thông báo web.");
-      return;
-    }
+    try {
+      setNotificationMessage("Đang kết nối thông báo cho thiết bị...");
+      const token = await requestPushToken();
+      if (!token) {
+        throw new Error("Không thể tạo token thông báo cho thiết bị này.");
+      }
 
-    const permission =
-      Notification.permission === "default" ? await Notification.requestPermission() : Notification.permission;
-    if (permission !== "granted") {
-      setNotificationMessage("Bạn chưa cho phép thông báo. Hãy bật quyền Thông báo trong cài đặt trình duyệt.");
-      return;
-    }
+      const subscribeResponse = await fetch("/api/push/subscribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token, userId: currentUser.id }),
+      });
+      if (!subscribeResponse.ok) {
+        throw new Error("Không thể đăng ký thiết bị nhận thông báo.");
+      }
 
-    const title = "Hồ sơ BĐS";
-    const options = {
-      body: "Thông báo thử đã hoạt động trên thiết bị này.",
-      tag: "ho-so-bds-test",
-    };
-
-    const registration = await navigator.serviceWorker?.ready;
-    if (registration) {
-      await registration.showNotification(title, options);
-    } else {
-      new Notification(title, options);
+      const testResponse = await fetch("/api/push/test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token }),
+      });
+      if (!testResponse.ok) {
+        throw new Error("Không thể gửi thông báo thử.");
+      }
+      setNotificationMessage("Đã gửi push notification thử. Hãy kiểm tra thanh thông báo của điện thoại.");
+    } catch (error) {
+      setNotificationMessage(error instanceof Error ? error.message : "Không thể gửi thông báo thử.");
     }
-    setNotificationMessage("Đã gửi thông báo thử.");
   }
 
   return (
@@ -118,7 +122,7 @@ export function ProfileScreen() {
         <div className="bg-white rounded-2xl shadow-sm p-4">
           <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Thông báo trên thiết bị</h3>
           <p className="text-xs leading-5 text-gray-500">
-            Kiểm tra quyền thông báo của điện thoại. Thông báo thử hoạt động khi web app đang mở hoặc đã cài ra màn hình chính.
+            Bật thông báo đẩy Firebase cho thiết bị này và gửi một push notification thử.
           </p>
           <button
             onClick={() => void sendTestNotification()}

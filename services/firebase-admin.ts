@@ -18,7 +18,7 @@ export function isFirebaseConfigured() {
 let firebaseApp: App | null = null;
 let firestoreInstance: Firestore | null = null;
 
-function getFirebaseApp() {
+export function getFirebaseAdminApp() {
   if (!isFirebaseConfigured()) {
     return null;
   }
@@ -38,7 +38,7 @@ function getFirebaseApp() {
 }
 
 export function getFirebaseAdminDb() {
-  const app = getFirebaseApp();
+  const app = getFirebaseAdminApp();
   if (!app) {
     return null;
   }
