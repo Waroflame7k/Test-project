@@ -57,6 +57,7 @@ const STATUS_ORDER = CASE_STATUSES.reduce((accumulator, status, index) => {
   accumulator[status] = index;
   return accumulator;
 }, {} as Record<CaseStatus, number>);
+const DELIVERED_TO_CUSTOMER_STATUS: CaseStatus = "Đã bàn giao khách";
 
 function compareOptionalDate(first: string, second: string) {
   if (!first && !second) return 0;
@@ -211,41 +212,59 @@ export function CasesScreen() {
     }
 
     const sorted = [...result];
+    const keepDeliveredCasesSeparate = (items: typeof sorted) => {
+      if (activeFilter !== "all") return items;
+      return [
+        ...items.filter((caseItem) => caseItem.status !== DELIVERED_TO_CUSTOMER_STATUS),
+        ...items.filter((caseItem) => caseItem.status === DELIVERED_TO_CUSTOMER_STATUS),
+      ];
+    };
+
     switch (sortMode) {
       case "status":
-        return sorted.sort((firstCase, secondCase) => (STATUS_ORDER[firstCase.status] ?? 99) - (STATUS_ORDER[secondCase.status] ?? 99));
+        return keepDeliveredCasesSeparate(
+          sorted.sort((firstCase, secondCase) => (STATUS_ORDER[firstCase.status] ?? 99) - (STATUS_ORDER[secondCase.status] ?? 99))
+        );
       case "customer":
-        return sorted.sort((firstCase, secondCase) =>
-          (customerMap.get(firstCase.customerId)?.fullName ?? "").localeCompare(
-            customerMap.get(secondCase.customerId)?.fullName ?? ""
+        return keepDeliveredCasesSeparate(
+          sorted.sort((firstCase, secondCase) =>
+            (customerMap.get(firstCase.customerId)?.fullName ?? "").localeCompare(
+              customerMap.get(secondCase.customerId)?.fullName ?? ""
+            )
           )
         );
       case "service":
-        return sorted.sort((firstCase, secondCase) => firstCase.serviceType.localeCompare(secondCase.serviceType, "vi"));
+        return keepDeliveredCasesSeparate(
+          sorted.sort((firstCase, secondCase) => firstCase.serviceType.localeCompare(secondCase.serviceType, "vi"))
+        );
       case "fee":
-        return sorted.sort((firstCase, secondCase) => secondCase.serviceFee - firstCase.serviceFee);
+        return keepDeliveredCasesSeparate(sorted.sort((firstCase, secondCase) => secondCase.serviceFee - firstCase.serviceFee));
       case "received":
-        return sorted.sort((firstCase, secondCase) => secondCase.createdAt.localeCompare(firstCase.createdAt));
+        return keepDeliveredCasesSeparate(sorted.sort((firstCase, secondCase) => secondCase.createdAt.localeCompare(firstCase.createdAt)));
       case "receiving-agency":
-        return sorted.sort((firstCase, secondCase) => {
-          const agencyComparison = compareReceivingAgency(
-            receivingAgencyLabel(latestSubmissionMap.get(firstCase.id)?.receivingAgency),
-            receivingAgencyLabel(latestSubmissionMap.get(secondCase.id)?.receivingAgency)
-          );
-          if (agencyComparison !== 0) return agencyComparison;
-          return compareOptionalDate(
-            returnDateFor(firstCase.id, firstCase.promisedDate),
-            returnDateFor(secondCase.id, secondCase.promisedDate)
-          );
-        });
+        return keepDeliveredCasesSeparate(
+          sorted.sort((firstCase, secondCase) => {
+            const agencyComparison = compareReceivingAgency(
+              receivingAgencyLabel(latestSubmissionMap.get(firstCase.id)?.receivingAgency),
+              receivingAgencyLabel(latestSubmissionMap.get(secondCase.id)?.receivingAgency)
+            );
+            if (agencyComparison !== 0) return agencyComparison;
+            return compareOptionalDate(
+              returnDateFor(firstCase.id, firstCase.promisedDate),
+              returnDateFor(secondCase.id, secondCase.promisedDate)
+            );
+          })
+        );
       default:
-        return sorted.sort((firstCase, secondCase) => {
-          const firstDate = returnDateFor(firstCase.id, firstCase.promisedDate);
-          const secondDate = returnDateFor(secondCase.id, secondCase.promisedDate);
-          const firstRank = isOverdue(firstDate, today) ? 0 : isDueSoon(firstDate, today) ? 1 : firstDate ? 2 : 3;
-          const secondRank = isOverdue(secondDate, today) ? 0 : isDueSoon(secondDate, today) ? 1 : secondDate ? 2 : 3;
-          return firstRank - secondRank || compareOptionalDate(firstDate, secondDate);
-        });
+        return keepDeliveredCasesSeparate(
+          sorted.sort((firstCase, secondCase) => {
+            const firstDate = returnDateFor(firstCase.id, firstCase.promisedDate);
+            const secondDate = returnDateFor(secondCase.id, secondCase.promisedDate);
+            const firstRank = isOverdue(firstDate, today) ? 0 : isDueSoon(firstDate, today) ? 1 : firstDate ? 2 : 3;
+            const secondRank = isOverdue(secondDate, today) ? 0 : isDueSoon(secondDate, today) ? 1 : secondDate ? 2 : 3;
+            return firstRank - secondRank || compareOptionalDate(firstDate, secondDate);
+          })
+        );
     }
   }, [activeFilter, advanced, allCases, customerMap, deferredSearch, latestSubmissionMap, returnDateFor, sortMode, today]);
 
@@ -257,6 +276,11 @@ export function CasesScreen() {
     });
     return counts;
   }, [displayed, latestSubmissionMap]);
+
+  const deliveredCount = useMemo(
+    () => displayed.filter((caseItem) => caseItem.status === DELIVERED_TO_CUSTOMER_STATUS).length,
+    [displayed]
+  );
 
   const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
   const allVisibleSelected = displayed.length > 0 && displayed.every((caseItem) => selectedSet.has(caseItem.id));
@@ -586,13 +610,29 @@ export function CasesScreen() {
                   const previousAgency = index > 0
                     ? receivingAgencyLabel(latestSubmissionMap.get(displayed[index - 1].id)?.receivingAgency)
                     : null;
-                  const showAgencyGroup = sortMode === "receiving-agency" && receivingAgency !== previousAgency;
+                  const isDelivered = caseItem.status === DELIVERED_TO_CUSTOMER_STATUS;
+                  const previousIsDelivered = index > 0 && displayed[index - 1].status === DELIVERED_TO_CUSTOMER_STATUS;
+                  const showDeliveredSection = activeFilter === "all" && isDelivered && !previousIsDelivered;
+                  const showAgencyGroup =
+                    sortMode === "receiving-agency" && (receivingAgency !== previousAgency || showDeliveredSection);
                   const returnDate = returnDateFor(caseItem.id, caseItem.promisedDate);
                   const overdue = Boolean(returnDate) && isOverdue(returnDate, today);
                   const dueSoon = Boolean(returnDate) && !overdue && isDueSoon(returnDate, today);
 
                   return (
                     <Fragment key={caseItem.id}>
+                      {showDeliveredSection ? (
+                        <tr className="border-y-2 border-[rgba(198,152,53,0.3)] bg-[rgba(255,249,238,0.94)]">
+                          <td colSpan={batchMode ? 9 : 8} className="px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-[var(--gold-700)]">Hồ sơ đã bàn giao khách</span>
+                              <span className="rounded-full bg-white px-2 py-0.5 text-xs font-semibold text-[var(--text-soft)]">
+                                {deliveredCount}
+                              </span>
+                            </div>
+                          </td>
+                        </tr>
+                      ) : null}
                       {showAgencyGroup ? (
                         <tr className="border-y border-[rgba(198,152,53,0.12)] bg-[rgba(251,246,236,0.78)]">
                           <td colSpan={batchMode ? 9 : 8} className="px-4 py-2.5">
@@ -673,13 +713,25 @@ export function CasesScreen() {
             const previousAgency = index > 0
               ? receivingAgencyLabel(latestSubmissionMap.get(displayed[index - 1].id)?.receivingAgency)
               : null;
-            const showAgencyGroup = sortMode === "receiving-agency" && receivingAgency !== previousAgency;
+            const isDelivered = caseItem.status === DELIVERED_TO_CUSTOMER_STATUS;
+            const previousIsDelivered = index > 0 && displayed[index - 1].status === DELIVERED_TO_CUSTOMER_STATUS;
+            const showDeliveredSection = activeFilter === "all" && isDelivered && !previousIsDelivered;
+            const showAgencyGroup =
+              sortMode === "receiving-agency" && (receivingAgency !== previousAgency || showDeliveredSection);
             const returnDate = returnDateFor(caseItem.id, caseItem.promisedDate);
             const overdue = Boolean(returnDate) && isOverdue(returnDate, today);
             const dueSoon = Boolean(returnDate) && !overdue && isDueSoon(returnDate, today);
 
             return (
               <div key={caseItem.id}>
+                {showDeliveredSection ? (
+                  <div className="flex items-center gap-2 px-1 pb-1 pt-4">
+                    <span className="text-sm font-bold text-[var(--gold-700)]">Hồ sơ đã bàn giao khách</span>
+                    <span className="rounded-full bg-[rgba(255,249,238,0.95)] px-2 py-0.5 text-[11px] font-semibold text-[var(--text-soft)]">
+                      {deliveredCount}
+                    </span>
+                  </div>
+                ) : null}
                 {showAgencyGroup ? (
                   <div className="flex items-center gap-2 px-1 pb-1 pt-3 first:pt-0">
                     <span className="truncate text-sm font-bold text-[var(--text-main)]">{receivingAgency}</span>
