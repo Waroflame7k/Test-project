@@ -1,0 +1,53 @@
+{
+  "name": "ho-so-bds",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest",
+    "test:run": "vitest run",
+    "test:e2e": "playwright test",
+    "firebase:seed": "node scripts/firebase-seed-state.mjs",
+    "telegram:bot": "node scripts/telegram-bot.mjs",
+    "telegram:poll": "node scripts/telegram-poll.mjs",
+    "telegram:notify": "node scripts/telegram-notify.mjs"
+  },
+  "dependencies": {
+    "@hookform/resolvers": "5.2.2",
+    "@supabase/supabase-js": "^2.110.8",
+    "class-variance-authority": "0.7.1",
+    "clsx": "2.1.1",
+    "firebase": "^12.16.0",
+    "firebase-admin": "^14.2.0",
+    "lucide-react": "0.525.0",
+    "next": "16.2.11",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "react-hook-form": "7.68.0",
+    "recharts": "3.5.1",
+    "tailwind-merge": "3.4.0",
+    "zod": "4.2.0"
+  },
+  "devDependencies": {
+    "@eslint/eslintrc": "3.3.3",
+    "@playwright/test": "1.57.0",
+    "@testing-library/jest-dom": "6.9.1",
+    "@testing-library/react": "16.3.1",
+    "@types/node": "24.10.3",
+    "@types/react": "19.2.7",
+    "@types/react-dom": "19.2.3",
+    "@vitejs/plugin-react": "5.1.2",
+    "autoprefixer": "10.4.22",
+    "eslint": "9.39.2",
+    "eslint-config-next": "16.2.11",
+    "jsdom": "27.3.0",
+    "postcss": "^8.5.21",
+    "tailwindcss": "3.4.19",
+    "typescript": "5.9.3",
+    "vitest": "^4.1.10"
+  }
+}

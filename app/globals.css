@@ -1,0 +1,214 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+  --font-sans: var(--font-plus-jakarta), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --bg-main: #f7f1e5;
+  --bg-soft: #fffaf1;
+  --surface: rgba(255, 255, 255, 0.92);
+  --surface-strong: #ffffff;
+  --surface-muted: #fffdfa;
+  --border-soft: rgba(198, 158, 89, 0.14);
+  --border-strong: rgba(184, 134, 11, 0.22);
+  --gold-400: #d3a94f;
+  --gold-500: #c69835;
+  --gold-600: #ab7e24;
+  --gold-700: #8c6418;
+  --text-main: #342312;
+  --text-soft: #756145;
+  --text-faint: #a18f72;
+  --shadow-soft: 0 18px 40px -28px rgba(79, 48, 7, 0.28);
+  --shadow-gold: 0 18px 48px -24px rgba(198, 152, 53, 0.24);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+  font-family: var(--font-sans);
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  color: var(--text-main);
+  font-family: var(--font-sans);
+  background:
+    radial-gradient(circle at top left, rgba(232, 200, 139, 0.34), transparent 28rem),
+    radial-gradient(circle at top right, rgba(255, 255, 255, 0.95), transparent 30rem),
+    linear-gradient(180deg, #fffdf8 0%, #f8f0df 54%, #f5ecdb 100%);
+  background-attachment: fixed;
+  -webkit-font-smoothing: antialiased;
+}
+
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--gold-500);
+  outline-offset: 2px;
+}
+
+::selection {
+  background: rgba(198, 152, 53, 0.22);
+  color: var(--text-main);
+}
+
+.gold-gradient-text {
+  background: linear-gradient(135deg, #7b5615 0%, #c69835 45%, #e0bc70 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.gold-gradient-bg {
+  background: linear-gradient(135deg, #d4ab55 0%, #b88625 55%, #8b6218 100%);
+}
+
+.luxe-panel {
+  background: var(--surface);
+  border: 1px solid var(--border-soft);
+  box-shadow: var(--shadow-soft);
+  backdrop-filter: blur(18px);
+}
+
+.luxe-panel-strong {
+  background: rgba(255, 255, 255, 0.98);
+  border: 1px solid var(--border-strong);
+  box-shadow: var(--shadow-soft);
+  backdrop-filter: blur(18px);
+}
+
+.luxe-panel-muted {
+  background: rgba(255, 255, 255, 0.86);
+  border: 1px solid rgba(198, 158, 89, 0.12);
+}
+
+.luxe-card {
+  background: rgba(255, 255, 255, 0.98);
+  border: 1px solid rgba(201, 171, 112, 0.16);
+  box-shadow: var(--shadow-soft);
+  transition: transform 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease;
+}
+
+.luxe-card:hover {
+  border-color: rgba(198, 152, 53, 0.34);
+  box-shadow: 0 22px 54px -32px rgba(178, 132, 33, 0.24);
+  transform: translateY(-2px);
+}
+
+.luxe-button-primary {
+  color: white;
+  border: 1px solid rgba(166, 114, 18, 0.35);
+  background: linear-gradient(135deg, #d6af5f 0%, #c08f2c 44%, #946918 100%);
+  box-shadow: 0 16px 32px -20px rgba(171, 126, 36, 0.5);
+}
+
+.luxe-button-primary:hover {
+  filter: saturate(1.05) brightness(0.98);
+  transform: translateY(-1px);
+}
+
+.luxe-button-secondary {
+  color: var(--text-main);
+  border: 1px solid rgba(198, 152, 53, 0.24);
+  background: rgba(255, 252, 245, 0.96);
+}
+
+.luxe-button-secondary:hover {
+  border-color: rgba(198, 152, 53, 0.42);
+  background: rgba(255, 248, 235, 0.98);
+}
+
+.luxe-button-ghost {
+  color: var(--text-soft);
+  border: 1px solid rgba(198, 152, 53, 0.12);
+  background: rgba(255, 255, 255, 0.65);
+}
+
+.luxe-button-ghost:hover {
+  color: var(--gold-700);
+  border-color: rgba(198, 152, 53, 0.22);
+}
+
+.luxe-input {
+  background: rgba(255, 253, 248, 0.92);
+  border: 1px solid rgba(190, 160, 111, 0.24);
+  color: var(--text-main);
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, background-color 0.18s ease;
+}
+
+.luxe-input::placeholder {
+  color: var(--text-faint);
+}
+
+.luxe-input:focus {
+  border-color: rgba(198, 152, 53, 0.58);
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 0 0 4px rgba(198, 152, 53, 0.12);
+}
+
+.luxe-nav-item {
+  color: #6c5840;
+  border: 1px solid transparent;
+  background: transparent;
+}
+
+.luxe-nav-item:hover {
+  color: var(--text-main);
+  background: rgba(255, 248, 233, 0.76);
+}
+
+.luxe-nav-item-active {
+  color: var(--text-main);
+  border-color: rgba(198, 152, 53, 0.2);
+  background: rgba(255, 251, 243, 0.98);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
+}
+
+.luxe-divider {
+  border-color: rgba(198, 152, 53, 0.14);
+}
+
+.luxe-badge {
+  border: 1px solid rgba(198, 152, 53, 0.16);
+  background: rgba(255, 255, 255, 0.9);
+  color: var(--gold-700);
+}
+
+.luxe-ring {
+  box-shadow: 0 0 0 1px rgba(198, 152, 53, 0.12), 0 18px 48px -32px rgba(109, 73, 12, 0.3);
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(239, 228, 208, 0.8);
+}
+
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, rgba(214, 175, 95, 0.92), rgba(175, 128, 38, 0.92));
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, rgba(198, 152, 53, 1), rgba(148, 105, 24, 1));
+}
+
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
