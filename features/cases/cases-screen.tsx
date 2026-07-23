@@ -402,7 +402,7 @@ export function CasesScreen() {
             <select
               value={sortMode}
               onChange={(event) => setSortMode(event.target.value as SortMode)}
-              className="luxe-input min-w-0 flex-1 rounded-xl px-3 py-2.5 text-xs outline-none md:hidden"
+              className="luxe-input min-w-0 flex-1 rounded-xl px-3 py-2.5 text-xs outline-none md:min-w-[220px] md:flex-none md:px-4 md:py-3 md:text-sm"
             >
               {(Object.keys(SORT_LABELS) as SortMode[]).map((mode) => (
                 <option key={mode} value={mode}>
