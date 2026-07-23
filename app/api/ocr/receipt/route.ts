@@ -35,10 +35,10 @@ function hasCoreReceiptFields(result: ReturnType<typeof parseReceiptText>) {
 }
 
 function getOcrProvider(): "mock" | "free" | "cloud-vision" {
-  if (process.env.OCR_PROVIDER === "mock" || process.env.OCR_PROVIDER === "free" || process.env.OCR_PROVIDER === "cloud-vision") {
+  if (process.env.OCR_PROVIDER === "free" || process.env.OCR_PROVIDER === "cloud-vision") {
     return process.env.OCR_PROVIDER;
   }
-  return process.env.NODE_ENV === "production" ? "cloud-vision" : "mock";
+  return "mock";
 }
 
 async function recognizeWithFreeOcr(file: File) {

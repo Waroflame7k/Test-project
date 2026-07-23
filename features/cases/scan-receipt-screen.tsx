@@ -69,6 +69,7 @@ export function ScanReceiptScreen() {
   const [ocrError, setOcrError] = useState("");
   const [ocrBillingUrl, setOcrBillingUrl] = useState("");
   const [ocrMode, setOcrMode] = useState("");
+  const [submitError, setSubmitError] = useState("");
   const [form, setForm] = useState<ReceiptFormState>(() => initialFormState(currentUser.fullName));
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -143,6 +144,7 @@ export function ScanReceiptScreen() {
     setOcrError("");
     setOcrBillingUrl("");
     setOcrMode("");
+    setSubmitError("");
     setOcrResult(null);
     setForm((previous) => ({
       ...previous,
@@ -154,17 +156,6 @@ export function ScanReceiptScreen() {
       applicantName: "",
     }));
     try {
-      const uploadForm = new FormData();
-      uploadForm.set("file", file);
-      const uploadResponse = await fetch("/api/receipts/upload", { method: "POST", body: uploadForm });
-      if (uploadResponse.ok) {
-        const upload = (await uploadResponse.json()) as { url: string };
-        setReceiptImageUrl(upload.url);
-      } else {
-        const upload = (await uploadResponse.json().catch(() => ({}))) as { error?: string };
-        setReceiptImageUrl("");
-        setReceiptUploadError(upload.error ?? "Không thể lưu ảnh biên nhận.");
-      }
       const ocrForm = new FormData();
       ocrForm.set("file", file);
       const ocrResponse = await fetch("/api/ocr/receipt", { method: "POST", body: ocrForm });
@@ -177,6 +168,19 @@ export function ScanReceiptScreen() {
       const { result, mode } = (await ocrResponse.json()) as { result: OCRResult; mode?: string };
       setOcrResult(result);
       setOcrMode(mode ?? "");
+      if (mode !== "mock") {
+        const uploadForm = new FormData();
+        uploadForm.set("file", file);
+        const uploadResponse = await fetch("/api/receipts/upload", { method: "POST", body: uploadForm });
+        if (uploadResponse.ok) {
+          const upload = (await uploadResponse.json()) as { url: string };
+          setReceiptImageUrl(upload.url);
+        } else {
+          const upload = (await uploadResponse.json().catch(() => ({}))) as { error?: string };
+          setReceiptImageUrl("");
+          setReceiptUploadError(upload.error ?? "Không thể lưu ảnh biên nhận.");
+        }
+      }
       setForm((previous) => ({
         ...previous,
         submissionCode: result.submissionCode,
@@ -202,6 +206,7 @@ export function ScanReceiptScreen() {
     setOcrError("");
     setOcrBillingUrl("");
     setOcrMode("");
+    setSubmitError("");
     if (fileInputRef.current) fileInputRef.current.value = "";
     setForm((prev) => ({
       ...prev,
@@ -236,10 +241,18 @@ export function ScanReceiptScreen() {
 
   function handleSubmit() {
     if (!selectedCase) return;
+    const submissionCode = form.submissionCode.trim();
+    const duplicate = data.submissions.some(
+      (submission) => submission.caseId === selectedCase.id && submission.submissionCode.trim().toLowerCase() === submissionCode.toLowerCase()
+    );
+    if (duplicate) {
+      setSubmitError(`Mã biên nhận ${submissionCode} đã có trong hồ sơ này. Hãy quét ảnh mới hoặc sửa mã trước khi lưu.`);
+      return;
+    }
 
     addSubmission({
       caseId: selectedCase.id,
-      submissionCode: form.submissionCode.trim(),
+      submissionCode,
       procedureType: form.procedureType.trim(),
       receivingAgency: form.receivingAgency.trim(),
       submittedDate: form.submittedDate,
@@ -267,9 +280,12 @@ export function ScanReceiptScreen() {
       action: entryMode === "ocr" ? "Tạo biên nhận hồ sơ từ OCR" : "Tạo biên nhận hồ sơ",
       entityType: "submissions",
       entityId: selectedCase.id,
-      newValue: form.submissionCode.trim(),
+      newValue: submissionCode,
     });
 
+    resetOcr();
+    setForm(initialFormState(currentUser.fullName));
+    setSelectedCaseId(linkedCaseId);
     navigate("case-detail", { caseId: selectedCase.id });
   }
 
@@ -610,6 +626,7 @@ export function ScanReceiptScreen() {
             >
               Lưu biên nhận hồ sơ
             </button>
+            {submitError ? <p className="rounded-xl bg-rose-50 px-3 py-2 text-sm font-medium text-rose-700">{submitError}</p> : null}
           </div>
         )}
       </div>
