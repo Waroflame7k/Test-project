@@ -334,11 +334,12 @@ export function CaseDetailScreen({ caseId }: { caseId: string }) {
                     const latestTransfer = caseCustodyTransfers
                       .filter((transfer) => transfer.documentId === document.id)
                       .sort((first, second) => second.transferredAt.localeCompare(first.transferredAt))[0];
+                    const handedToCustomer = latestTransfer?.transferType === "Bàn giao khách";
                     return (
                       <div key={document.id} className="rounded-xl border border-amber-100 bg-white px-3 py-2.5">
                         <p className="text-sm font-semibold text-gray-800">{document.documentName}</p>
                         <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-600">
-                          <span>Người giữ: {holder?.fullName ?? "Chưa xác định"}</span>
+                          <span>{handedToCustomer ? "Trạng thái: Đã bàn giao khách" : `Người giữ: ${holder?.fullName ?? "Chưa xác định"}`}</span>
                           <span>Vị trí: {document.storageLocation ?? "Chưa cập nhật"}</span>
                           <span>Lần giao gần nhất: {latestTransfer ? formatDate(latestTransfer.transferredAt) : "Chưa có"}</span>
                         </div>
@@ -356,6 +357,7 @@ export function CaseDetailScreen({ caseId }: { caseId: string }) {
                 const docTransfers = caseCustodyTransfers
                   .filter((ct) => ct.documentId === doc.id)
                   .sort((a, b) => b.transferredAt.localeCompare(a.transferredAt));
+                const handedToCustomer = docTransfers[0]?.transferType === "Bàn giao khách";
                 return (
                   <div key={doc.id} className="bg-white rounded-2xl shadow-sm p-4">
                     <div className="flex items-start justify-between mb-1">
@@ -379,7 +381,7 @@ export function CaseDetailScreen({ caseId }: { caseId: string }) {
                     </div>
                     <div className="text-xs text-gray-500 space-y-0.5">
                       <p>SL: {doc.quantity} · {doc.documentType}</p>
-                      {holder && <p>Người giữ: {holder.fullName}</p>}
+                      {handedToCustomer ? <p className="font-semibold text-emerald-700">Đã bàn giao khách: {formatDate(docTransfers[0].transferredAt)}</p> : <p>Người giữ: {holder?.fullName ?? "Chưa cập nhật"}</p>}
                       {doc.storageLocation && <p>Vị trí: {doc.storageLocation}</p>}
                     </div>
                     {docTransfers.length > 0 && (
@@ -388,11 +390,12 @@ export function CaseDetailScreen({ caseId }: { caseId: string }) {
                         {docTransfers.slice(0, 3).map((ct) => {
                           const toUser = data.profiles.find((p) => p.id === ct.toUserId);
                           const fromUser = ct.fromUserId ? data.profiles.find((p) => p.id === ct.fromUserId) : null;
+                          const handedToCustomer = ct.transferType === "Bàn giao khách";
                           return (
                             <div key={ct.id} className="flex items-center gap-1.5 text-[11px] text-gray-500 py-0.5">
                               <ArrowRightLeft size={10} className="text-gray-400 shrink-0" />
                               <span className="font-medium text-gray-700">{ct.transferType}</span>
-                              <span>→ {toUser?.fullName ?? "—"}</span>
+                              <span>→ {handedToCustomer ? "Khách hàng" : toUser?.fullName ?? "—"}</span>
                               {fromUser && <span className="text-gray-400">từ {fromUser.fullName}</span>}
                               <span className="ml-auto text-gray-400">{formatDate(ct.transferredAt)}</span>
                             </div>
@@ -823,6 +826,7 @@ export function CaseDetailScreen({ caseId }: { caseId: string }) {
         onClose={() => setTransferModalOpen(false)}
         profiles={data.profiles}
         currentUserId={currentUser.id}
+        customerName={customer?.fullName ?? "Khách hàng"}
         onSubmit={(values) => {
           addCustodyTransfer({
             documentId: transferDocId,
@@ -1237,12 +1241,14 @@ function CustodyTransferModal({
   onClose,
   profiles,
   currentUserId,
+  customerName,
   onSubmit,
 }: {
   open: boolean;
   onClose: () => void;
   profiles: Array<{ id: string; fullName: string }>;
   currentUserId: string;
+  customerName: string;
   onSubmit: (values: {
     transferType: CustodyTransfer["transferType"];
     toUserId: string;
@@ -1287,7 +1293,8 @@ function CustodyTransferModal({
           </select>
         </div>
         <div>
-          <label className="text-xs text-gray-400 mb-1 block">Người nhận</label>
+          <label className="text-xs text-gray-400 mb-1 block">{transferType === "Bàn giao khách" ? "Nhân viên xác nhận bàn giao" : "Người nhận"}</label>
+          {transferType === "Bàn giao khách" ? <p className="mb-2 rounded-lg bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-700">Tài liệu sẽ được đánh dấu đã bàn giao cho: {customerName}</p> : null}
           <select
             className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white"
             value={toUserId}

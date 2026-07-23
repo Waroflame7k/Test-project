@@ -188,7 +188,7 @@ export class DemoRepository implements DataRepository {
     if (!document) throw new Error("Không tìm thấy tài liệu.");
     const previousValue = document.currentHolderId;
     const transfer: CustodyTransfer = { ...input, id: makeId("ct") };
-    document.currentHolderId = input.toUserId;
+    document.currentHolderId = input.transferType === "Bàn giao khách" ? undefined : input.toUserId;
     if (input.transferType === "Bàn giao khách") document.returnedDate = input.transferredAt.slice(0, 10);
     this.data.custodyTransfers.unshift(transfer);
     this.addLog(
@@ -197,7 +197,7 @@ export class DemoRepository implements DataRepository {
       "custody_transfers",
       transfer.id,
       previousValue,
-      input.toUserId,
+      input.transferType === "Bàn giao khách" ? "Đã bàn giao khách" : input.toUserId,
       document.caseId
     );
     this.save();

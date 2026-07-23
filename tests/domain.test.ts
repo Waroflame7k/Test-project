@@ -95,6 +95,20 @@ describe("nghiệp vụ hồ sơ BĐS", () => {
     expect(document?.currentHolderId).toBe("u-staff");
   });
 
+  it("đánh dấu tài liệu đã bàn giao khách thay vì gán nhầm cho nhân viên", () => {
+    const repository = new DemoRepository(demoData);
+    repository.transferDocument({
+      documentId: "doc-001",
+      toUserId: "u-staff",
+      transferType: "Bàn giao khách",
+      transferredAt: "2026-07-23T09:00:00+07:00",
+      createdBy: "u-admin",
+    });
+    const document = repository.getData().documents.find((item) => item.id === "doc-001");
+    expect(document?.currentHolderId).toBeUndefined();
+    expect(document?.returnedDate).toBe("2026-07-23");
+  });
+
   it("xác nhận OCR trước khi lưu", async () => {
     const provider = new MockOCRProvider();
     const result = await provider.extractReceipt(new File(["demo"], "receipt.jpg", { type: "image/jpeg" }));

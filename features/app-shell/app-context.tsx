@@ -363,7 +363,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         ...prev,
         custodyTransfers: [...prev.custodyTransfers, newTransfer],
         documents: prev.documents.map((document) =>
-          document.id === newTransfer.documentId ? { ...document, currentHolderId: newTransfer.toUserId } : document
+          document.id === newTransfer.documentId
+            ? {
+                ...document,
+                currentHolderId: newTransfer.transferType === "Bàn giao khách" ? undefined : newTransfer.toUserId,
+                returnedDate: newTransfer.transferType === "Bàn giao khách" ? newTransfer.transferredAt.slice(0, 10) : document.returnedDate,
+              }
+            : document
         ),
       }));
     },
