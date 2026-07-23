@@ -838,7 +838,7 @@ export const demoData: AppData = {
     {
       id: "pay-002",
       caseId: "case-001",
-      paymentType: "Chi hộ",
+      paymentType: "Chi",
       category: "Lệ phí đo đạc",
       amount: 2500000,
       paymentDate: "2026-06-26",

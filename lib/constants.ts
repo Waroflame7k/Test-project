@@ -37,7 +37,7 @@ export const CASE_STATUSES: CaseStatus[] = [
   "Đang khiếu nại"
 ];
 
-export const PAYMENT_TYPES: PaymentType[] = ["Thu", "Chi", "Chi hộ"];
+export const PAYMENT_TYPES: PaymentType[] = ["Thu", "Chi"];
 
 export const ROLE_LABELS: Record<UserRole, string> = {
   admin: "Quản trị",

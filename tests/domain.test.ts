@@ -20,16 +20,16 @@ describe("nghiệp vụ hồ sơ BĐS", () => {
     expect(isOverdue("2026-07-20", "2026-07-21")).toBe(true);
   });
 
-  it("tính số tiền còn phải thu bằng số nguyên VNĐ", () => {
+  it("cộng chi phí đã chi vào số tiền khách còn phải thanh toán", () => {
     expect(calculateReceivable(18_000_000, 8_000_000)).toBe(10_000_000);
-    expect(receivableForCase(demoData.cases[0], demoData.payments)).toBe(10_000_000);
+    expect(receivableForCase(demoData.cases[0], demoData.payments)).toBe(12_500_000);
   });
 
   it("tổng hợp thu chi theo cùng logic cho tổng quan và báo cáo", () => {
     const summary = financeSummary(demoData.payments);
     expect(summary.received).toBeGreaterThan(0);
     expect(summary.spent).toBeGreaterThan(0);
-    expect(summary.netCashflow).toBe(summary.received - summary.spent - summary.paidOnBehalf);
+    expect(summary.netCashflow).toBe(summary.received - summary.spent);
     expect(currentMonthRange("2026-02-15")).toEqual({ from: "2026-02-01", to: "2026-02-28" });
   });
 

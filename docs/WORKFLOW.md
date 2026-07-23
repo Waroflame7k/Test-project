@@ -33,4 +33,4 @@
 - Phí dịch vụ nằm ở `cases.service_fee`.
 - Các khoản khách thanh toán là `payments.payment_type = Thu`.
 - Còn phải thu = phí dịch vụ - tổng đã thu.
-- Chi phí công ty và chi hộ khách được ghi riêng bằng `Chi` hoặc `Chi hộ`.
+- Chi phí phát sinh cho hồ sơ được ghi bằng `Chi` và tự cộng vào số tiền khách còn phải thanh toán.

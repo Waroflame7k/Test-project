@@ -149,7 +149,6 @@ export function CaseDetailScreen({ caseId }: { caseId: string }) {
   const paymentTypeColors: Record<PaymentType, string> = {
     Thu: "bg-green-100 text-green-700",
     Chi: "bg-red-100 text-red-700",
-    "Chi hộ": "bg-orange-100 text-orange-700",
   };
 
   // ── Tab content renderer (shared between mobile and desktop) ──────────────
@@ -1044,8 +1043,6 @@ function PaymentModal({
     amount: number;
     paymentDate: string;
     paymentMethod: "Tiền mặt" | "Chuyển khoản" | "Khác";
-    payer: string;
-    receiver: string;
     note?: string;
   }) => void;
 }) {
@@ -1055,14 +1052,12 @@ function PaymentModal({
   const [amount, setAmount] = useState("");
   const [paymentDate, setPaymentDate] = useState(today);
   const [paymentMethod, setPaymentMethod] = useState<"Tiền mặt" | "Chuyển khoản" | "Khác">("Tiền mặt");
-  const [payer, setPayer] = useState("");
-  const [receiver, setReceiver] = useState("");
 
   return (
     <Modal open={open} onClose={onClose} title="Ghi nhận thu chi">
       <div className="space-y-3">
         <div className="flex gap-2">
-          {(["Thu", "Chi", "Chi hộ"] as PaymentType[]).map((t) => (
+          {(["Thu", "Chi"] as PaymentType[]).map((t) => (
             <button
               key={t}
               onClick={() => setPaymentType(t)}
@@ -1086,18 +1081,6 @@ function PaymentModal({
           type="number"
           value={amount}
           onChange={(e) => setAmount(e.target.value)}
-        />
-        <input
-          className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm"
-          placeholder="Người nộp / trả"
-          value={payer}
-          onChange={(e) => setPayer(e.target.value)}
-        />
-        <input
-          className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm"
-          placeholder="Người nhận"
-          value={receiver}
-          onChange={(e) => setReceiver(e.target.value)}
         />
         <div className="flex gap-2">
           <div className="flex-1">
@@ -1125,8 +1108,8 @@ function PaymentModal({
         <button
           onClick={() => {
             const amt = Number(amount);
-            if (!category || !amt || !payer || !receiver) return;
-            onSubmit({ paymentType, category, amount: amt, paymentDate, paymentMethod, payer, receiver });
+            if (!category || !amt) return;
+            onSubmit({ paymentType, category, amount: amt, paymentDate, paymentMethod });
           }}
           className="w-full bg-[#ea580c] text-white font-bold rounded-xl py-3"
         >

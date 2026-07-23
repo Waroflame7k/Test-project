@@ -35,7 +35,7 @@ export type ServiceType =
 export type Priority = "Thấp" | "Trung bình" | "Cao" | "Khẩn";
 export type TaskStatus = "Chưa làm" | "Đang làm" | "Hoàn thành";
 export type SubmissionStatus = "Đã nộp" | "Cần bổ sung" | "Có kết quả" | "Đã nhận" | "Đã hủy";
-export type PaymentType = "Thu" | "Chi" | "Chi hộ";
+export type PaymentType = "Thu" | "Chi";
 
 export interface Organization {
   id: string;
@@ -193,8 +193,9 @@ export interface Payment {
   amount: number;
   paymentDate: string;
   paymentMethod: "Tiền mặt" | "Chuyển khoản" | "Khác";
-  payer: string;
-  receiver: string;
+  // Old records can retain these values; new transactions do not require them.
+  payer?: string;
+  receiver?: string;
   receiptUrl?: string;
   note?: string;
   createdBy: string;

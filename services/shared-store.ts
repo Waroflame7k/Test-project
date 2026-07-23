@@ -2,6 +2,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import { demoData } from "@/services/demo-data";
 import { getFirebaseAdminDb, isFirebaseConfigured } from "@/services/firebase-admin";
+import { normalizeAppData } from "@/lib/data-normalization";
 import type {
   ActivityLog,
   AppData,
@@ -74,6 +75,8 @@ function sortByDateFieldDesc<T>(items: T[], getValue: (item: T) => string) {
 }
 
 export function mergeAppData(current: AppData, incoming: AppData): AppData {
+  current = normalizeAppData(current);
+  incoming = normalizeAppData(incoming);
   return {
     organization: incoming.organization ?? current.organization,
     profiles: mergeById(current.profiles, incoming.profiles),
@@ -129,7 +132,7 @@ async function readFirestoreAppData(): Promise<AppData | null> {
     return null;
   }
   const data = snapshot.data()?.data;
-  return (data as AppData | undefined) ?? null;
+  return data ? normalizeAppData(data as AppData) : null;
 }
 
 async function writeFirestoreAppData(data: AppData): Promise<void> {
@@ -139,7 +142,7 @@ async function writeFirestoreAppData(data: AppData): Promise<void> {
   }
   await db.collection(FIRESTORE_SYSTEM_COLLECTION).doc(FIRESTORE_APP_STATE_DOC).set(
     {
-      data,
+      data: normalizeAppData(data),
       updatedAt: new Date().toISOString(),
     },
     { merge: true }
@@ -155,7 +158,7 @@ async function upsertFirestoreAppData(incoming: AppData): Promise<AppData> {
   const reference = db.collection(FIRESTORE_SYSTEM_COLLECTION).doc(FIRESTORE_APP_STATE_DOC);
   return db.runTransaction(async (transaction) => {
     const snapshot = await transaction.get(reference);
-    const current = (snapshot.data()?.data as AppData | undefined) ?? demoData;
+    const current = normalizeAppData((snapshot.data()?.data as AppData | undefined) ?? demoData);
     const merged = mergeAppData(current, incoming);
     transaction.set(
       reference,
@@ -178,7 +181,7 @@ export async function readSharedAppData(): Promise<AppData> {
     }
     return data;
   }
-  return readJsonFile(APP_DATA_FILE, demoData);
+  return normalizeAppData(await readJsonFile(APP_DATA_FILE, demoData));
 }
 
 export async function writeSharedAppData(data: AppData): Promise<void> {
@@ -186,7 +189,7 @@ export async function writeSharedAppData(data: AppData): Promise<void> {
     await writeFirestoreAppData(data);
     return;
   }
-  await writeJsonFile(APP_DATA_FILE, data);
+  await writeJsonFile(APP_DATA_FILE, normalizeAppData(data));
 }
 
 export async function upsertSharedAppData(incoming: AppData): Promise<AppData> {

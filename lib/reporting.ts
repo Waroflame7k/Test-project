@@ -8,7 +8,6 @@ export interface DateRange {
 export interface FinanceSummary {
   received: number;
   spent: number;
-  paidOnBehalf: number;
   netCashflow: number;
 }
 
@@ -30,16 +29,15 @@ export function summarizeFinance(payments: Payment[]): FinanceSummary {
     (summary, payment) => {
       if (payment.paymentType === "Thu") summary.received += payment.amount;
       if (payment.paymentType === "Chi") summary.spent += payment.amount;
-      if (payment.paymentType === "Chi hộ") summary.paidOnBehalf += payment.amount;
       return summary;
     },
-    { received: 0, spent: 0, paidOnBehalf: 0, netCashflow: 0 }
+    { received: 0, spent: 0, netCashflow: 0 }
   );
 }
 
 export function financeSummary(payments: Payment[]): FinanceSummary {
   const summary = summarizeFinance(payments);
-  return { ...summary, netCashflow: summary.received - summary.spent - summary.paidOnBehalf };
+  return { ...summary, netCashflow: summary.received - summary.spent };
 }
 
 export function paymentsByType(payments: Payment[], paymentType: PaymentType | "all"): Payment[] {

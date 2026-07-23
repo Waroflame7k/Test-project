@@ -18,6 +18,7 @@ import type {
 import { demoData } from "@/services/demo-data";
 import { generateCaseCode } from "@/lib/case-utils";
 import { CASE_STATUSES, DEMO_PASSWORD } from "@/lib/constants";
+import { normalizeAppData } from "@/lib/data-normalization";
 
 const STORAGE_KEY = "bds-data";
 let remoteSaveTimeout: number | undefined;
@@ -27,14 +28,14 @@ async function loadData(): Promise<AppData> {
   try {
     const response = await fetch("/api/app-data", { cache: "no-store" });
     if (response.ok) {
-      return (await response.json()) as AppData;
+      return normalizeAppData((await response.json()) as AppData);
     }
   } catch {
     // fall through to local storage
   }
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) return JSON.parse(raw) as AppData;
+    if (raw) return normalizeAppData(JSON.parse(raw) as AppData);
   } catch {
     // ignore parse errors
   }

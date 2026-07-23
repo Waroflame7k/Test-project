@@ -22,7 +22,10 @@ export function paidByCustomer(caseId: string, payments: Payment[]): number {
 }
 
 export function receivableForCase(caseItem: Case, payments: Payment[]): number {
-  return calculateReceivable(caseItem.serviceFee, paidByCustomer(caseItem.id, payments));
+  const spentForCase = payments
+    .filter((payment) => payment.caseId === caseItem.id && payment.paymentType === "Chi")
+    .reduce((sum, payment) => sum + payment.amount, 0);
+  return calculateReceivable(caseItem.serviceFee + spentForCase, paidByCustomer(caseItem.id, payments));
 }
 
 export function maskPhone(phone: string): string {
