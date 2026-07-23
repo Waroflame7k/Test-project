@@ -34,11 +34,11 @@ interface AdvancedFilters {
   dateTo: string;
 }
 
-type FilterKey = "all" | "active" | "waiting-receipt" | "due-soon" | "overdue";
+type FilterKey = "all" | "new" | "due-soon";
 type SortMode = "deadline" | "status" | "customer" | "service" | "fee" | "received" | "receiving-agency";
 
 const SORT_LABELS: Record<SortMode, string> = {
-  deadline: "Hẹn trả",
+  deadline: "Hạn hồ sơ",
   status: "Trạng thái",
   customer: "Khách hàng",
   service: "Dịch vụ",
@@ -49,10 +49,8 @@ const SORT_LABELS: Record<SortMode, string> = {
 
 const FILTERS: { key: FilterKey; label: string }[] = [
   { key: "all", label: "Tất cả" },
-  { key: "active", label: "Đang xử lý" },
-  { key: "waiting-receipt", label: "Chưa có biên nhận" },
-  { key: "due-soon", label: "Sắp hạn" },
-  { key: "overdue", label: "Quá hạn" },
+  { key: "new", label: "Hồ sơ mới tạo" },
+  { key: "due-soon", label: "Hồ sơ sắp hạn" },
 ];
 
 const STATUS_ORDER = CASE_STATUSES.reduce((accumulator, status, index) => {
@@ -114,7 +112,7 @@ export function CasesScreen() {
   const today = todayIso();
 
   const [search, setSearch] = useState("");
-  const [activeFilter, setActiveFilter] = useState<FilterKey>("active");
+  const [activeFilter, setActiveFilter] = useState<FilterKey>("all");
   const [sortMode, setSortMode] = useState<SortMode>("deadline");
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [batchMode, setBatchMode] = useState(false);
@@ -173,22 +171,13 @@ export function CasesScreen() {
   const displayed = useMemo(() => {
     let result = allCases;
 
-    if (activeFilter === "active") {
-      result = result.filter((caseItem) => isCaseActive(caseItem.status));
-    } else if (activeFilter === "waiting-receipt") {
+    if (activeFilter === "new") {
       result = result.filter((caseItem) => !latestSubmissionMap.has(caseItem.id));
     } else if (activeFilter === "due-soon") {
       result = result.filter(
         (caseItem) => {
           const returnDate = returnDateFor(caseItem.id, caseItem.promisedDate);
           return Boolean(returnDate) && isCaseActive(caseItem.status) && isDueSoon(returnDate, today);
-        }
-      );
-    } else if (activeFilter === "overdue") {
-      result = result.filter(
-        (caseItem) => {
-          const returnDate = returnDateFor(caseItem.id, caseItem.promisedDate);
-          return Boolean(returnDate) && isCaseActive(caseItem.status) && isOverdue(returnDate, today);
         }
       );
     }
@@ -581,7 +570,7 @@ export function CasesScreen() {
                   <SortableColumnHeader label="Khách hàng" mode="customer" activeMode={sortMode} onSort={setSortMode} />
                   <SortableColumnHeader label="Dịch vụ" mode="service" activeMode={sortMode} onSort={setSortMode} />
                   <SortableColumnHeader label="Trạng thái" mode="status" activeMode={sortMode} onSort={setSortMode} />
-                  <SortableColumnHeader label="Hẹn trả" mode="deadline" activeMode={sortMode} onSort={setSortMode} />
+                  <SortableColumnHeader label="Hạn hồ sơ" mode="deadline" activeMode={sortMode} onSort={setSortMode} />
                   <SortableColumnHeader label="Nơi nộp" mode="receiving-agency" activeMode={sortMode} onSort={setSortMode} />
                   <th className="px-4 py-3 text-xs font-semibold uppercase tracking-[0.14em] text-[var(--text-faint)]">Phụ trách</th>
                   <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-[0.14em] text-[var(--text-faint)]">Phí</th>
