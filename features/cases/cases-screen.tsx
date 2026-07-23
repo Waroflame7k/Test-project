@@ -71,7 +71,7 @@ export function CasesScreen() {
   const today = todayIso();
 
   const [search, setSearch] = useState("");
-  const [activeFilter, setActiveFilter] = useState<FilterKey>("all");
+  const [activeFilter, setActiveFilter] = useState<FilterKey>("active");
   const [sortMode, setSortMode] = useState<SortMode>("deadline");
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [batchMode, setBatchMode] = useState(false);
@@ -94,18 +94,22 @@ export function CasesScreen() {
   const customerMap = useMemo(() => new Map(data.customers.map((customer) => [customer.id, customer])), [data.customers]);
   const profileMap = useMemo(() => new Map(data.profiles.map((profile) => [profile.id, profile])), [data.profiles]);
   const latestSubmissionMap = useMemo(() => {
-    const latest = new Map<string, { submissionCode: string; submittedDate: string }>();
+    const latest = new Map<string, { submissionCode: string; submittedDate: string; expectedReturnDate: string }>();
     data.submissions.forEach((submission) => {
       const current = latest.get(submission.caseId);
       if (!current || submission.submittedDate > current.submittedDate) {
         latest.set(submission.caseId, {
           submissionCode: submission.submissionCode,
           submittedDate: submission.submittedDate,
+          expectedReturnDate: submission.expectedReturnDate,
         });
       }
     });
     return latest;
   }, [data.submissions]);
+
+  const returnDateFor = (caseId: string, fallbackDate: string) =>
+    latestSubmissionMap.get(caseId)?.expectedReturnDate || fallbackDate;
 
   const serviceTypes = useMemo(() => [...new Set(allCases.map((caseItem) => caseItem.serviceType))].sort(), [allCases]);
   const staffList = useMemo(() => {
@@ -126,11 +130,17 @@ export function CasesScreen() {
       result = result.filter((caseItem) => !latestSubmissionMap.has(caseItem.id));
     } else if (activeFilter === "due-soon") {
       result = result.filter(
-        (caseItem) => Boolean(caseItem.promisedDate) && isCaseActive(caseItem.status) && isDueSoon(caseItem.promisedDate, today)
+        (caseItem) => {
+          const returnDate = returnDateFor(caseItem.id, caseItem.promisedDate);
+          return Boolean(returnDate) && isCaseActive(caseItem.status) && isDueSoon(returnDate, today);
+        }
       );
     } else if (activeFilter === "overdue") {
       result = result.filter(
-        (caseItem) => Boolean(caseItem.promisedDate) && isCaseActive(caseItem.status) && isOverdue(caseItem.promisedDate, today)
+        (caseItem) => {
+          const returnDate = returnDateFor(caseItem.id, caseItem.promisedDate);
+          return Boolean(returnDate) && isCaseActive(caseItem.status) && isOverdue(returnDate, today);
+        }
       );
     }
 
@@ -156,10 +166,10 @@ export function CasesScreen() {
       result = result.filter((caseItem) => caseItem.assignedTo === advanced.assignedTo);
     }
     if (advanced.dateFrom) {
-      result = result.filter((caseItem) => caseItem.promisedDate && caseItem.promisedDate >= advanced.dateFrom);
+      result = result.filter((caseItem) => returnDateFor(caseItem.id, caseItem.promisedDate) >= advanced.dateFrom);
     }
     if (advanced.dateTo) {
-      result = result.filter((caseItem) => caseItem.promisedDate && caseItem.promisedDate <= advanced.dateTo);
+      result = result.filter((caseItem) => returnDateFor(caseItem.id, caseItem.promisedDate) <= advanced.dateTo);
     }
 
     const sorted = [...result];
@@ -177,7 +187,13 @@ export function CasesScreen() {
       case "received":
         return sorted.sort((firstCase, secondCase) => secondCase.createdAt.localeCompare(firstCase.createdAt));
       default:
-        return sorted.sort((firstCase, secondCase) => compareOptionalDate(firstCase.promisedDate, secondCase.promisedDate));
+        return sorted.sort((firstCase, secondCase) => {
+          const firstDate = returnDateFor(firstCase.id, firstCase.promisedDate);
+          const secondDate = returnDateFor(secondCase.id, secondCase.promisedDate);
+          const firstRank = isOverdue(firstDate, today) ? 0 : isDueSoon(firstDate, today) ? 1 : firstDate ? 2 : 3;
+          const secondRank = isOverdue(secondDate, today) ? 0 : isDueSoon(secondDate, today) ? 1 : secondDate ? 2 : 3;
+          return firstRank - secondRank || compareOptionalDate(firstDate, secondDate);
+        });
     }
   }, [activeFilter, advanced, allCases, customerMap, deferredSearch, latestSubmissionMap, sortMode, today]);
 
@@ -191,7 +207,10 @@ export function CasesScreen() {
     {
       label: "Quá hạn",
       value: allCases.filter(
-        (caseItem) => Boolean(caseItem.promisedDate) && isCaseActive(caseItem.status) && isOverdue(caseItem.promisedDate, today)
+        (caseItem) => {
+          const returnDate = returnDateFor(caseItem.id, caseItem.promisedDate);
+          return Boolean(returnDate) && isCaseActive(caseItem.status) && isOverdue(returnDate, today);
+        }
       ).length,
     },
   ];
@@ -501,8 +520,9 @@ export function CasesScreen() {
                   const customer = customerMap.get(caseItem.customerId);
                   const assignedProfile = profileMap.get(caseItem.assignedTo);
                   const latestSubmission = latestSubmissionMap.get(caseItem.id);
-                  const overdue = Boolean(caseItem.promisedDate) && isOverdue(caseItem.promisedDate, today);
-                  const dueSoon = Boolean(caseItem.promisedDate) && !overdue && isDueSoon(caseItem.promisedDate, today);
+                  const returnDate = returnDateFor(caseItem.id, caseItem.promisedDate);
+                  const overdue = Boolean(returnDate) && isOverdue(returnDate, today);
+                  const dueSoon = Boolean(returnDate) && !overdue && isDueSoon(returnDate, today);
 
                   return (
                     <tr
@@ -533,9 +553,9 @@ export function CasesScreen() {
                       <td className="px-4 py-3"><StatusBadge status={caseItem.status} /></td>
 
                       <td className="px-4 py-3">
-                        {caseItem.promisedDate ? (
+                        {returnDate ? (
                           <span className={overdue ? "font-semibold text-[#b15c45]" : dueSoon ? "font-semibold text-[#b97316]" : "text-[var(--text-main)]"}>
-                            {formatDate(caseItem.promisedDate)}
+                            {formatDate(returnDate)}
                           </span>
                         ) : (
                           <span className="text-[var(--text-soft)]">Chưa hẹn trả</span>
@@ -569,8 +589,9 @@ export function CasesScreen() {
           displayed.map((caseItem) => {
             const customer = customerMap.get(caseItem.customerId);
             const latestSubmission = latestSubmissionMap.get(caseItem.id);
-            const overdue = Boolean(caseItem.promisedDate) && isOverdue(caseItem.promisedDate, today);
-            const dueSoon = Boolean(caseItem.promisedDate) && !overdue && isDueSoon(caseItem.promisedDate, today);
+            const returnDate = returnDateFor(caseItem.id, caseItem.promisedDate);
+            const overdue = Boolean(returnDate) && isOverdue(returnDate, today);
+            const dueSoon = Boolean(returnDate) && !overdue && isDueSoon(returnDate, today);
 
             return (
               <button
@@ -613,7 +634,7 @@ export function CasesScreen() {
                     <p className="mt-1 truncate text-sm text-[var(--text-main)]">{caseItem.serviceType}</p>
                     <div className="mt-2 flex items-center gap-2 text-xs text-[var(--text-soft)]">
                       <Calendar size={12} />
-                      <span>{caseItem.promisedDate ? `Hẹn trả ${formatDate(caseItem.promisedDate)}` : "Chưa hẹn trả"}</span>
+                      <span>{returnDate ? `Hẹn trả ${formatDate(returnDate)}` : "Chưa hẹn trả"}</span>
                     </div>
 
                     <div className="mt-3 flex items-center justify-between gap-3">
