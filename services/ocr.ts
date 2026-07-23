@@ -36,17 +36,24 @@ export function parseReceiptText(text: string): OCRResult {
 
 export class MockOCRProvider implements OCRProvider {
   async extractReceipt(file: File): Promise<OCRResult> {
-    void file;
-    await new Promise((resolve) => setTimeout(resolve, 500));
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    const fingerprint = Array.from(`${file.name}:${file.size}:${file.lastModified}`).reduce(
+      (hash, character) => (hash * 31 + character.charCodeAt(0)) >>> 0,
+      7
+    );
+    const submittedAt = new Date(file.lastModified || Date.now());
+    const expectedAt = new Date(submittedAt);
+    expectedAt.setDate(expectedAt.getDate() + 14);
+    const formatIsoDate = (value: Date) => value.toISOString().slice(0, 10);
     return {
-      caseCode: "HS-2026-0073",
-      submittedDate: "2026-07-01",
-      expectedReturnDate: "2026-07-23",
-      procedureType: "Đăng ký biến động/tặng cho",
-      receivingAgency: "Hành chính công xã Cần Giuộc",
-      submittedBy: "Nguyễn Khánh Nam",
-      applicantName: "Nguyễn Phước Đức",
-      submissionCode: "H53.183-260625-0075"
+      caseCode: "",
+      submittedDate: formatIsoDate(submittedAt),
+      expectedReturnDate: formatIsoDate(expectedAt),
+      procedureType: "Dữ liệu mẫu cần kiểm tra",
+      receivingAgency: "Dữ liệu mẫu cần kiểm tra",
+      submittedBy: "",
+      applicantName: "Dữ liệu mẫu cần kiểm tra",
+      submissionCode: `TEST-${String(fingerprint).padStart(8, "0")}`,
     };
   }
 }

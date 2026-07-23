@@ -6,7 +6,7 @@ import { calculateReceivable } from "@/lib/money";
 import { can } from "@/lib/permissions";
 import { currentMonthRange, financeSummary } from "@/lib/reporting";
 import { demoData } from "@/services/demo-data";
-import { parseReceiptText } from "@/services/ocr";
+import { MockOCRProvider, parseReceiptText } from "@/services/ocr";
 import { DemoRepository } from "@/services/repository";
 
 describe("nghiệp vụ hồ sơ BĐS", () => {
@@ -115,6 +115,14 @@ describe("nghiệp vụ hồ sơ BĐS", () => {
     expect(result.submittedDate).toBe("2026-07-01");
     expect(result.expectedReturnDate).toBe("2026-07-19");
     expect(result.applicantName).toBe("Nguyễn Văn A");
+  });
+
+  it("tạo dữ liệu mock khác nhau cho mỗi ảnh test", async () => {
+    const provider = new MockOCRProvider();
+    const first = await provider.extractReceipt(new File(["first"], "first.jpg", { type: "image/jpeg", lastModified: 1_784_000_000_000 }));
+    const second = await provider.extractReceipt(new File(["second"], "second.jpg", { type: "image/jpeg", lastModified: 1_785_000_000_000 }));
+    expect(first.submissionCode).not.toBe(second.submissionCode);
+    expect(first.procedureType).toContain("Dữ liệu mẫu");
   });
 
   it("tạo cảnh báo theo rule đến hạn, quá hạn và công nợ", () => {
