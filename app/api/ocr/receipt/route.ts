@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { parseReceiptText } from "@/services/ocr";
+import { MockOCRProvider, parseReceiptText } from "@/services/ocr";
 import { getFirebaseAdminApp, isFirebaseConfigured } from "@/services/firebase-admin";
 
 export const runtime = "nodejs";
@@ -34,19 +34,44 @@ function hasCoreReceiptFields(result: ReturnType<typeof parseReceiptText>) {
   return Boolean(result.submissionCode && result.submittedDate && result.expectedReturnDate && result.receivingAgency);
 }
 
-export async function POST(request: Request) {
-  if (!isFirebaseConfigured()) return NextResponse.json({ error: "Firebase chưa được cấu hình cho OCR." }, { status: 503 });
+function getOcrProvider(): "mock" | "free" | "cloud-vision" {
+  if (process.env.OCR_PROVIDER === "mock" || process.env.OCR_PROVIDER === "free" || process.env.OCR_PROVIDER === "cloud-vision") {
+    return process.env.OCR_PROVIDER;
+  }
+  return process.env.NODE_ENV === "production" ? "cloud-vision" : "mock";
+}
 
+async function recognizeWithFreeOcr(file: File) {
+  const { createWorker } = await import("tesseract.js");
+  const worker = await createWorker("vie+eng");
+  try {
+    const { data } = await worker.recognize(Buffer.from(await file.arrayBuffer()));
+    return data.text.trim();
+  } finally {
+    await worker.terminate();
+  }
+}
+
+export async function POST(request: Request) {
   const formData = await request.formData();
   const file = formData.get("file");
   if (!(file instanceof File) || !file.type.startsWith("image/") || file.size > MAX_RECEIPT_SIZE) {
     return NextResponse.json({ error: "Chỉ hỗ trợ ảnh biên nhận tối đa 8 MB." }, { status: 400 });
   }
 
-  const credential = getFirebaseAdminApp()?.options.credential;
-  if (!credential) return NextResponse.json({ error: "Không lấy được quyền truy cập OCR." }, { status: 503 });
-
   try {
+    const provider = getOcrProvider();
+    if (provider === "mock") {
+      return NextResponse.json({ result: await new MockOCRProvider().extractReceipt(file), mode: "mock" });
+    }
+    if (provider === "free") {
+      const text = await recognizeWithFreeOcr(file);
+      if (!text) return NextResponse.json({ error: "OCR miễn phí không đọc được chữ trên ảnh biên nhận." }, { status: 422 });
+      return NextResponse.json({ result: parseReceiptText(text), text, mode: "free" });
+    }
+    if (!isFirebaseConfigured()) return NextResponse.json({ error: "Firebase chưa được cấu hình cho Cloud Vision." }, { status: 503 });
+    const credential = getFirebaseAdminApp()?.options.credential;
+    if (!credential) return NextResponse.json({ error: "Không lấy được quyền truy cập Cloud Vision." }, { status: 503 });
     const token = await credential.getAccessToken();
     const imageContent = Buffer.from(await file.arrayBuffer()).toString("base64");
     // Clear receipts use quick OCR; only incomplete results use the detailed, slower mode.
@@ -60,6 +85,16 @@ export async function POST(request: Request) {
     if (!detailedText) return NextResponse.json({ error: "Không đọc được chữ trên ảnh biên nhận." }, { status: 422 });
     return NextResponse.json({ result: parseReceiptText(detailedText), text: detailedText, mode: "detailed" });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Google Vision không thể đọc biên nhận." }, { status: 502 });
+    const message = error instanceof Error ? error.message : "Google Vision không thể đọc biên nhận.";
+    if (/billing/i.test(message)) {
+      return NextResponse.json(
+        {
+          error: "Cloud Vision yêu cầu bật thanh toán cho dự án Firebase trước khi quét ảnh.",
+          billingUrl: `https://console.developers.google.com/billing/enable?project=${process.env.FIREBASE_PROJECT_ID ?? ""}`,
+        },
+        { status: 402 }
+      );
+    }
+    return NextResponse.json({ error: message }, { status: 502 });
   }
 }

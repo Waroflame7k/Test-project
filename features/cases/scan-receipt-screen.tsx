@@ -67,6 +67,8 @@ export function ScanReceiptScreen() {
   const [receiptImageUrl, setReceiptImageUrl] = useState("");
   const [receiptUploadError, setReceiptUploadError] = useState("");
   const [ocrError, setOcrError] = useState("");
+  const [ocrBillingUrl, setOcrBillingUrl] = useState("");
+  const [ocrMode, setOcrMode] = useState("");
   const [form, setForm] = useState<ReceiptFormState>(() => initialFormState(currentUser.fullName));
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -139,6 +141,8 @@ export function ScanReceiptScreen() {
     setIsProcessing(true);
     setReceiptUploadError("");
     setOcrError("");
+    setOcrBillingUrl("");
+    setOcrMode("");
     setOcrResult(null);
     setForm((previous) => ({
       ...previous,
@@ -165,12 +169,14 @@ export function ScanReceiptScreen() {
       ocrForm.set("file", file);
       const ocrResponse = await fetch("/api/ocr/receipt", { method: "POST", body: ocrForm });
       if (!ocrResponse.ok) {
-        const ocr = (await ocrResponse.json().catch(() => ({}))) as { error?: string };
+        const ocr = (await ocrResponse.json().catch(() => ({}))) as { error?: string; billingUrl?: string };
         setOcrError(ocr.error ?? "Không thể đọc biên nhận này.");
+        setOcrBillingUrl(ocr.billingUrl ?? "");
         return;
       }
-      const { result } = (await ocrResponse.json()) as { result: OCRResult };
+      const { result, mode } = (await ocrResponse.json()) as { result: OCRResult; mode?: string };
       setOcrResult(result);
+      setOcrMode(mode ?? "");
       setForm((previous) => ({
         ...previous,
         submissionCode: result.submissionCode,
@@ -194,6 +200,8 @@ export function ScanReceiptScreen() {
     setReceiptImageUrl("");
     setReceiptUploadError("");
     setOcrError("");
+    setOcrBillingUrl("");
+    setOcrMode("");
     if (fileInputRef.current) fileInputRef.current.value = "";
     setForm((prev) => ({
       ...prev,
@@ -364,6 +372,7 @@ export function ScanReceiptScreen() {
                       <p>Thủ tục: {ocrResult.procedureType}</p>
                       <p>Mã biên nhận: {ocrResult.submissionCode}</p>
                     </div>
+                    {ocrMode === "mock" ? <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs font-bold text-amber-700">Dữ liệu mẫu để test, chưa đọc nội dung ảnh thật.</p> : null}
                     {receiptImageUrl ? <img src={receiptImageUrl} alt="Biên nhận đã quét" className="max-h-52 w-full rounded-xl border border-green-200 object-contain bg-white" /> : null}
                     {receiptUploadError ? <p className="text-xs font-medium text-amber-700">Ảnh chưa lưu được: {receiptUploadError}</p> : null}
                     <button
@@ -374,7 +383,7 @@ export function ScanReceiptScreen() {
                     </button>
                   </div>
                 )}
-                {ocrError ? <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm font-medium text-rose-700">OCR chưa đọc được ảnh này: {ocrError}. Bạn có thể thử ảnh rõ hơn hoặc nhập tay.</div> : null}
+                {ocrError ? <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm font-medium text-rose-700"><p>OCR chưa đọc được ảnh này: {ocrError}</p>{ocrBillingUrl ? <a href={ocrBillingUrl} target="_blank" rel="noreferrer" className="mt-2 inline-block font-bold underline">Mở trang bật thanh toán</a> : <p className="mt-2">Bạn có thể thử ảnh rõ hơn hoặc nhập tay.</p>}</div> : null}
               </div>
             )}
 
