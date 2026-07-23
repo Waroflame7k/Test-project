@@ -115,6 +115,7 @@ export function CasesScreen() {
   const [search, setSearch] = useState("");
   const [activeFilter, setActiveFilter] = useState<FilterKey>("all");
   const [sortMode, setSortMode] = useState<SortMode>("deadline");
+  const [showDeliveredCases, setShowDeliveredCases] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [batchMode, setBatchMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -268,14 +269,19 @@ export function CasesScreen() {
     }
   }, [activeFilter, advanced, allCases, customerMap, deferredSearch, latestSubmissionMap, returnDateFor, sortMode, today]);
 
+  const casesForList = useMemo(() => {
+    if (activeFilter !== "all" || showDeliveredCases) return displayed;
+    return displayed.filter((caseItem) => caseItem.status !== DELIVERED_TO_CUSTOMER_STATUS);
+  }, [activeFilter, displayed, showDeliveredCases]);
+
   const receivingAgencyCounts = useMemo(() => {
     const counts = new Map<string, number>();
-    displayed.forEach((caseItem) => {
+    casesForList.forEach((caseItem) => {
       const agency = receivingAgencyLabel(latestSubmissionMap.get(caseItem.id)?.receivingAgency);
       counts.set(agency, (counts.get(agency) ?? 0) + 1);
     });
     return counts;
-  }, [displayed, latestSubmissionMap]);
+  }, [casesForList, latestSubmissionMap]);
 
   const deliveredCount = useMemo(
     () => displayed.filter((caseItem) => caseItem.status === DELIVERED_TO_CUSTOMER_STATUS).length,
@@ -283,7 +289,7 @@ export function CasesScreen() {
   );
 
   const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
-  const allVisibleSelected = displayed.length > 0 && displayed.every((caseItem) => selectedSet.has(caseItem.id));
+  const allVisibleSelected = casesForList.length > 0 && casesForList.every((caseItem) => selectedSet.has(caseItem.id));
 
   const summaryCards = [
     { label: "Tổng hồ sơ", value: allCases.length },
@@ -309,8 +315,8 @@ export function CasesScreen() {
   }
 
   function toggleSelectAllVisible() {
-    if (displayed.length === 0) return;
-    const visibleIds = displayed.map((caseItem) => caseItem.id);
+    if (casesForList.length === 0) return;
+    const visibleIds = casesForList.map((caseItem) => caseItem.id);
     if (allVisibleSelected) {
       setSelectedIds((previous) => previous.filter((id) => !visibleIds.includes(id)));
       return;
@@ -528,9 +534,22 @@ export function CasesScreen() {
         )}
 
         <div className="mt-3 flex flex-wrap items-center gap-1.5 text-xs text-[var(--text-soft)] md:mt-4 md:gap-2 md:text-sm">
-          <span>{displayed.length} hồ sơ hiển thị</span>
+          <span>{casesForList.length} hồ sơ hiển thị</span>
           <span className="text-[var(--border-strong)]">•</span>
           <span>Sắp xếp theo {SORT_LABELS[sortMode]}</span>
+          {activeFilter === "all" && deliveredCount > 0 ? (
+            <>
+              <span className="text-[var(--border-strong)]">•</span>
+              <button
+                type="button"
+                onClick={() => setShowDeliveredCases((previous) => !previous)}
+                className="inline-flex items-center gap-1 font-semibold text-[var(--gold-700)]"
+              >
+                Hồ sơ đã bàn giao khách ({deliveredCount})
+                <ChevronDown size={14} className={showDeliveredCases ? "rotate-180 transition-transform" : "transition-transform"} />
+              </button>
+            </>
+          ) : null}
           {hasAdvancedFilter ? (
             <>
               <span className="text-[var(--border-strong)]">•</span>
@@ -583,7 +602,7 @@ export function CasesScreen() {
       ) : null}
 
       <section className="hidden md:block">
-        {displayed.length === 0 ? (
+        {casesForList.length === 0 ? (
           <EmptyState title="Không có hồ sơ" message="Thử đổi bộ lọc hoặc tạo hồ sơ khách hàng mới." />
         ) : (
           <div className="luxe-panel rounded-[1.8rem] overflow-hidden">
@@ -602,16 +621,16 @@ export function CasesScreen() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[rgba(198,152,53,0.08)]">
-                {displayed.map((caseItem, index) => {
+                {casesForList.map((caseItem, index) => {
                   const customer = customerMap.get(caseItem.customerId);
                   const assignedProfile = profileMap.get(caseItem.assignedTo);
                   const latestSubmission = latestSubmissionMap.get(caseItem.id);
                   const receivingAgency = receivingAgencyLabel(latestSubmission?.receivingAgency);
                   const previousAgency = index > 0
-                    ? receivingAgencyLabel(latestSubmissionMap.get(displayed[index - 1].id)?.receivingAgency)
+                    ? receivingAgencyLabel(latestSubmissionMap.get(casesForList[index - 1].id)?.receivingAgency)
                     : null;
                   const isDelivered = caseItem.status === DELIVERED_TO_CUSTOMER_STATUS;
-                  const previousIsDelivered = index > 0 && displayed[index - 1].status === DELIVERED_TO_CUSTOMER_STATUS;
+                  const previousIsDelivered = index > 0 && casesForList[index - 1].status === DELIVERED_TO_CUSTOMER_STATUS;
                   const showDeliveredSection = activeFilter === "all" && isDelivered && !previousIsDelivered;
                   const showAgencyGroup =
                     sortMode === "receiving-agency" && (receivingAgency !== previousAgency || showDeliveredSection);
@@ -703,18 +722,18 @@ export function CasesScreen() {
       </section>
 
       <section className="space-y-2 md:hidden">
-        {displayed.length === 0 ? (
+        {casesForList.length === 0 ? (
           <EmptyState title="Không có hồ sơ" message="Thử đổi bộ lọc hoặc tạo hồ sơ khách hàng mới." />
         ) : (
-          displayed.map((caseItem, index) => {
+          casesForList.map((caseItem, index) => {
             const customer = customerMap.get(caseItem.customerId);
             const latestSubmission = latestSubmissionMap.get(caseItem.id);
             const receivingAgency = receivingAgencyLabel(latestSubmission?.receivingAgency);
             const previousAgency = index > 0
-              ? receivingAgencyLabel(latestSubmissionMap.get(displayed[index - 1].id)?.receivingAgency)
+              ? receivingAgencyLabel(latestSubmissionMap.get(casesForList[index - 1].id)?.receivingAgency)
               : null;
             const isDelivered = caseItem.status === DELIVERED_TO_CUSTOMER_STATUS;
-            const previousIsDelivered = index > 0 && displayed[index - 1].status === DELIVERED_TO_CUSTOMER_STATUS;
+            const previousIsDelivered = index > 0 && casesForList[index - 1].status === DELIVERED_TO_CUSTOMER_STATUS;
             const showDeliveredSection = activeFilter === "all" && isDelivered && !previousIsDelivered;
             const showAgencyGroup =
               sortMode === "receiving-agency" && (receivingAgency !== previousAgency || showDeliveredSection);
