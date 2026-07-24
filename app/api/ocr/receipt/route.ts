@@ -1,55 +1,137 @@
 import { NextResponse } from "next/server";
-import { MockOCRProvider, parseReceiptText } from "@/services/ocr";
-import { getFirebaseAdminApp, isFirebaseConfigured } from "@/services/firebase-admin";
+import { SERVICE_TYPES } from "@/lib/constants";
+import { missingReceiptFields, normalizeProcedureType, normalizeSubmissionCode } from "@/services/ocr";
+import type { OCRResult } from "@/services/ocr";
 
 export const runtime = "nodejs";
 
 const MAX_RECEIPT_SIZE = 8 * 1024 * 1024;
 
-type VisionResponse = {
-  responses?: Array<{
-    fullTextAnnotation?: { text?: string };
-    textAnnotations?: Array<{ description?: string }>;
-    error?: { message?: string };
-  }>;
+type GeminiResponse = {
+  candidates?: Array<{ content?: { parts?: Array<{ text?: string; thought?: boolean }> } }>;
+  error?: { message?: string };
 };
 
-async function detectText(accessToken: string, imageContent: string, type: "TEXT_DETECTION" | "DOCUMENT_TEXT_DETECTION") {
-  const response = await fetch("https://vision.googleapis.com/v1/images:annotate", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ requests: [{ image: { content: imageContent }, features: [{ type }] }] }),
-  });
-  if (!response.ok) {
-    const detail = (await response.json().catch(() => ({}))) as { error?: { message?: string } };
-    throw new Error(detail.error?.message ?? "Google Vision không thể đọc biên nhận.");
+type GeminiReceipt = Partial<Pick<OCRResult, "submissionCode" | "procedureType" | "receivingAgency" | "applicantName" | "submittedDate" | "expectedReturnDate">> & {
+  confidence?: number;
+};
+
+const GEMINI_RECEIPT_SCHEMA = {
+  type: "object",
+  properties: {
+    submissionCode: { type: "string", description: "Mã hoặc số biên nhận/tiếp nhận, giữ nguyên dấu chấm và gạch nối." },
+    procedureType: { type: "string", description: `Chọn một loại trong danh mục: ${SERVICE_TYPES.join(", ")}. Nếu ảnh không phải biên nhận thì trả chuỗi rỗng.` },
+    receivingAgency: { type: "string", description: "Giữ nguyên tên cơ quan, khu vực hoặc nơi tiếp nhận ghi trên biên nhận." },
+    applicantName: { type: "string", description: "Ưu tiên tên ngay sau dòng Tiếp nhận hồ sơ của; không lấy người đại diện, người được ủy quyền hoặc cán bộ." },
+    submittedDate: { type: "string", description: "Ngày nộp hoặc ngày tiếp nhận theo YYYY-MM-DD; không lấy ngày lập." },
+    expectedReturnDate: { type: "string", description: "Ngày hẹn trả hoặc ngày trả kết quả theo YYYY-MM-DD." },
+    confidence: { type: "number", description: "Mức tự tin tổng thể từ 0 đến 1 dựa trên độ rõ của ảnh và khả năng đọc đúng các trường." },
+  },
+  required: ["submissionCode", "procedureType", "receivingAgency", "applicantName", "submittedDate", "expectedReturnDate", "confidence"],
+};
+
+function stringField(value: unknown) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function normalizeDate(value: unknown) {
+  const date = stringField(value);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(date)) return date;
+  const match = date.match(/(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{4})/);
+  return match ? `${match[3]}-${match[2].padStart(2, "0")}-${match[1].padStart(2, "0")}` : "";
+}
+
+function normalizeAgency(value: unknown) {
+  return stringField(value);
+}
+
+function geminiOcrModel() {
+  const configuredModel = process.env.GEMINI_OCR_MODEL?.trim();
+  if (!configuredModel || configuredModel === "gemini-flash-latest" || configuredModel === "gemini-flash-lite-latest") {
+    return "gemini-3.5-flash-lite";
   }
-  const vision = (await response.json()) as VisionResponse;
-  const result = vision.responses?.[0];
-  if (result?.error?.message) throw new Error(result.error.message);
-  return result?.fullTextAnnotation?.text?.trim() ?? result?.textAnnotations?.[0]?.description?.trim() ?? "";
+  return configuredModel;
 }
 
-function hasCoreReceiptFields(result: ReturnType<typeof parseReceiptText>) {
-  return Boolean(result.submissionCode && result.submittedDate && result.expectedReturnDate && result.receivingAgency);
-}
-
-function getOcrProvider(): "mock" | "free" | "cloud-vision" {
-  if (process.env.OCR_PROVIDER === "free" || process.env.OCR_PROVIDER === "cloud-vision") {
-    return process.env.OCR_PROVIDER;
+function extractJsonObject(text: string) {
+  const normalized = text.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "");
+  const start = normalized.indexOf("{");
+  const end = normalized.lastIndexOf("}");
+  if (start === -1 || end < start) {
+    throw new Error("Gemini trả về dữ liệu không đúng định dạng. Hãy thử lại ảnh này.");
   }
-  return "mock";
+
+  return normalized.slice(start, end + 1);
 }
 
-async function recognizeWithFreeOcr(file: File) {
-  const { createWorker } = await import("tesseract.js");
-  const worker = await createWorker("vie+eng");
+function parseGeminiReceipt(text: string): { result: OCRResult; confidence: number } {
+  let payload: GeminiReceipt;
   try {
-    const { data } = await worker.recognize(Buffer.from(await file.arrayBuffer()));
-    return data.text.trim();
-  } finally {
-    await worker.terminate();
+    payload = JSON.parse(extractJsonObject(text)) as GeminiReceipt;
+  } catch {
+    throw new Error("Gemini chưa trả đủ dữ liệu biên nhận. Hãy thử quét lại ảnh này.");
   }
+  const result: OCRResult = {
+    caseCode: "",
+    submissionCode: normalizeSubmissionCode(stringField(payload.submissionCode)),
+    procedureType: normalizeProcedureType(stringField(payload.procedureType)),
+    receivingAgency: normalizeAgency(payload.receivingAgency),
+    applicantName: stringField(payload.applicantName),
+    submittedDate: normalizeDate(payload.submittedDate),
+    expectedReturnDate: normalizeDate(payload.expectedReturnDate),
+    submittedBy: "",
+  };
+  const statedConfidence =
+    typeof payload.confidence === "number" && Number.isFinite(payload.confidence)
+      ? Math.min(1, Math.max(0, payload.confidence))
+      : 0;
+  const completeness = 1 - missingReceiptFields(result).length / 6;
+  return {
+    result,
+    confidence: Math.round((statedConfidence * 0.75 + completeness * 0.25) * 100),
+  };
+}
+
+async function recognizeWithGemini(file: File) {
+  const apiKey = process.env.GEMINI_API_KEY?.trim();
+  if (!apiKey) throw new Error("Chưa cấu hình Gemini API key.");
+
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${geminiOcrModel()}:generateContent?key=${encodeURIComponent(apiKey)}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [
+          {
+            parts: [
+              {
+                text:
+                  "Bạn là OCR cho ảnh chụp biên nhận hành chính Việt Nam, có thể nghiêng, tối hoặc có nền bàn/đồ vật. CHỈ trả JSON theo schema, không có lời dẫn hay markdown. Chỉ đọc nếu tiêu đề là GIẤY TIẾP NHẬN HỒ SƠ hoặc PHIẾU TIẾP NHẬN HỒ SƠ; nếu là hợp đồng hoặc tài liệu khác, để tất cả trường rỗng và confidence bằng 0. submissionCode lấy sau Số/Mã biên nhận, giữ nguyên phần mã chính và chỉ bỏ hậu tố cuối kiểu /TNHS. procedureType phải là một lựa chọn trong schema; trích đo hoặc đo đạc kiểm tra dùng Đo đạc. receivingAgency giữ nguyên tên cơ quan, khu vực hoặc nơi tiếp nhận ghi trên ảnh. applicantName bắt buộc ưu tiên tên ngay sau dòng TIẾP NHẬN HỒ SƠ CỦA; chỉ khi không có dòng này mới lấy NGƯỜI NỘP. Không lấy NGƯỜI ĐẠI DIỆN, người có tiền tố UQ, người được ủy quyền, cán bộ hoặc người ký nhận. submittedDate lấy thời gian nhận hồ sơ hoặc ngày tiếp nhận, không lấy ngày lập. expectedReturnDate lấy Ngày dự kiến đo đạc, Hẹn trả hoặc Trả kết quả. Chuẩn hóa ngày YYYY-MM-DD. confidence từ 0 đến 1, giảm điểm nếu ảnh mờ, nghiêng hoặc có trường không chắc chắn. Không rõ thì chuỗi rỗng.",
+              },
+              { inlineData: { mimeType: file.type || "image/jpeg", data: Buffer.from(await file.arrayBuffer()).toString("base64") } },
+            ],
+          },
+        ],
+        generationConfig: {
+          temperature: 0,
+          maxOutputTokens: 512,
+          responseMimeType: "application/json",
+          responseSchema: GEMINI_RECEIPT_SCHEMA,
+          thinkingConfig: { thinkingLevel: "MINIMAL" },
+        },
+      }),
+    }
+  );
+  const payload = (await response.json().catch(() => ({}))) as GeminiResponse;
+  if (!response.ok) throw new Error(payload.error?.message ?? "Gemini không thể đọc biên nhận.");
+  const text = payload.candidates?.[0]?.content?.parts?.filter((part) => !part.thought).map((part) => part.text ?? "").join("").trim();
+  if (!text) throw new Error("Gemini không trả về dữ liệu biên nhận.");
+  return parseGeminiReceipt(text);
+}
+
+export async function GET() {
+  return NextResponse.json({ mode: "gemini", configured: Boolean(process.env.GEMINI_API_KEY?.trim()) });
 }
 
 export async function POST(request: Request) {
@@ -60,40 +142,18 @@ export async function POST(request: Request) {
   }
 
   try {
-    const provider = getOcrProvider();
-    if (provider === "mock") {
-      return NextResponse.json({ result: await new MockOCRProvider().extractReceipt(file), mode: "mock" });
-    }
-    if (provider === "free") {
-      const text = await recognizeWithFreeOcr(file);
-      if (!text) return NextResponse.json({ error: "OCR miễn phí không đọc được chữ trên ảnh biên nhận." }, { status: 422 });
-      return NextResponse.json({ result: parseReceiptText(text), text, mode: "free" });
-    }
-    if (!isFirebaseConfigured()) return NextResponse.json({ error: "Firebase chưa được cấu hình cho Cloud Vision." }, { status: 503 });
-    const credential = getFirebaseAdminApp()?.options.credential;
-    if (!credential) return NextResponse.json({ error: "Không lấy được quyền truy cập Cloud Vision." }, { status: 503 });
-    const token = await credential.getAccessToken();
-    const imageContent = Buffer.from(await file.arrayBuffer()).toString("base64");
-    // Clear receipts use quick OCR; only incomplete results use the detailed, slower mode.
-    const fastText = await detectText(token.access_token, imageContent, "TEXT_DETECTION");
-    const fastResult = parseReceiptText(fastText);
-    if (fastText && hasCoreReceiptFields(fastResult)) {
-      return NextResponse.json({ result: fastResult, text: fastText, mode: "fast" });
-    }
-
-    const detailedText = await detectText(token.access_token, imageContent, "DOCUMENT_TEXT_DETECTION");
-    if (!detailedText) return NextResponse.json({ error: "Không đọc được chữ trên ảnh biên nhận." }, { status: 422 });
-    return NextResponse.json({ result: parseReceiptText(detailedText), text: detailedText, mode: "detailed" });
+    const recognized = await recognizeWithGemini(file);
+    return NextResponse.json({
+      result: recognized.result,
+      confidence: recognized.confidence,
+      missingFields: missingReceiptFields(recognized.result),
+      mode: "gemini",
+      model: geminiOcrModel(),
+    });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Google Vision không thể đọc biên nhận.";
-    if (/billing/i.test(message)) {
-      return NextResponse.json(
-        {
-          error: "Cloud Vision yêu cầu bật thanh toán cho dự án Firebase trước khi quét ảnh.",
-          billingUrl: `https://console.developers.google.com/billing/enable?project=${process.env.FIREBASE_PROJECT_ID ?? ""}`,
-        },
-        { status: 402 }
-      );
+    const message = error instanceof Error ? error.message : "Gemini không thể đọc biên nhận.";
+    if (/resource exhausted|quota|rate limit/i.test(message)) {
+      return NextResponse.json({ error: "Gemini đã hết quota tạm thời. Hãy thử lại sau." }, { status: 429 });
     }
     return NextResponse.json({ error: message }, { status: 502 });
   }

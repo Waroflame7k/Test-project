@@ -804,6 +804,16 @@
   ],
   "tasks": [
     {
+      "title": "a",
+      "caseId": "case-014",
+      "assignedTo": "u-admin",
+      "dueDate": "2026-07-23",
+      "priority": "Trung bình",
+      "status": "Chưa làm",
+      "id": "task-1784815407577-i9iq0",
+      "createdAt": "2026-07-23T14:03:27.577Z"
+    },
+    {
       "id": "task-006",
       "caseId": "case-011",
       "title": "Soạn văn bản khiếu nại bổ sung",
@@ -884,7 +894,7 @@
     {
       "id": "pay-002",
       "caseId": "case-001",
-      "paymentType": "Chi hộ",
+      "paymentType": "Chi",
       "category": "Lệ phí đo đạc",
       "amount": 2500000,
       "paymentDate": "2026-06-26",

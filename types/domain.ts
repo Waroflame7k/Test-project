@@ -28,6 +28,7 @@ export type ServiceType =
   | "Cấp lại"
   | "Đính chính"
   | "Trích lục"
+  | "Đo đạc"
   | "Xin phép xây dựng"
   | "Hồ sơ bồi thường"
   | "Khác";

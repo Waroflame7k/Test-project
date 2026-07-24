@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   BadgeCheck,
+  AlertTriangle,
   Building2,
   CalendarDays,
   Camera,
@@ -16,9 +17,16 @@ import {
   User,
 } from "lucide-react";
 import { useApp, useCurrentUser } from "@/features/app-shell/app-context";
-import type { OCRResult } from "@/services/ocr";
+import {
+  matchCustomerByName,
+  missingReceiptFields,
+  normalizePersonName,
+  normalizeSubmissionCode,
+  type OCRResult,
+} from "@/services/ocr";
 import { formatDate, todayIso } from "@/lib/date";
 import { formatVnd } from "@/lib/money";
+import { SERVICE_TYPES } from "@/lib/constants";
 import type { Case, Priority } from "@/types/domain";
 
 const WIZARD_STEPS = [5, 6, 7] as const;
@@ -33,25 +41,59 @@ interface ReceiptFormState {
   receivingAgency: string;
   submittedDate: string;
   expectedReturnDate: string;
-  applicantName: string;
-  submittedBy: string;
   assignedTo: string;
   priority: Priority;
   note: string;
 }
 
-const initialFormState = (submittedBy: string): ReceiptFormState => ({
+const initialFormState = (): ReceiptFormState => ({
   submissionCode: "",
   procedureType: "",
   receivingAgency: "",
   submittedDate: todayIso(),
   expectedReturnDate: "",
-  applicantName: "",
-  submittedBy,
   assignedTo: "",
   priority: DEFAULT_PRIORITY,
   note: "",
 });
+
+async function optimizeReceiptImage(file: File) {
+  if (!file.type.startsWith("image/")) return file;
+
+  try {
+    const sourceUrl = URL.createObjectURL(file);
+    try {
+      const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+        const element = new Image();
+        element.onload = () => resolve(element);
+        element.onerror = reject;
+        element.src = sourceUrl;
+      });
+      const maxEdge = 1280;
+      const isAlreadyOptimized =
+        file.type === "image/jpeg" && file.size <= 900 * 1024 && Math.max(image.naturalWidth, image.naturalHeight) <= maxEdge;
+      if (isAlreadyOptimized) return file;
+      const scale = Math.min(1, maxEdge / Math.max(image.naturalWidth, image.naturalHeight));
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+      canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+      const context = canvas.getContext("2d");
+      if (!context) return file;
+      context.drawImage(image, 0, 0, canvas.width, canvas.height);
+      const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.82));
+      if (!blob) return file;
+
+      return new File([blob], file.name.replace(/\.[^.]+$/, "") + ".jpg", {
+        type: "image/jpeg",
+        lastModified: file.lastModified,
+      });
+    } finally {
+      URL.revokeObjectURL(sourceUrl);
+    }
+  } catch {
+    return file;
+  }
+}
 
 export function ScanReceiptScreen() {
   const { data, navigate, screenParams, updateCase, addSubmission, addActivityLog } = useApp();
@@ -68,9 +110,10 @@ export function ScanReceiptScreen() {
   const [receiptUploadError, setReceiptUploadError] = useState("");
   const [ocrError, setOcrError] = useState("");
   const [ocrBillingUrl, setOcrBillingUrl] = useState("");
-  const [ocrMode, setOcrMode] = useState("");
+  const [ocrDurationMs, setOcrDurationMs] = useState(0);
+  const [ocrConfidence, setOcrConfidence] = useState(0);
   const [submitError, setSubmitError] = useState("");
-  const [form, setForm] = useState<ReceiptFormState>(() => initialFormState(currentUser.fullName));
+  const [form, setForm] = useState<ReceiptFormState>(initialFormState);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const assignableProfiles = useMemo(() => {
@@ -82,6 +125,11 @@ export function ScanReceiptScreen() {
   const availableCases = useMemo(() => {
     return data.cases.filter((caseItem) => !caseItem.archivedAt);
   }, [data.cases]);
+
+  const customerMatch = useMemo(
+    () => (ocrResult ? matchCustomerByName(ocrResult.applicantName, data.customers, data.profiles) : null),
+    [data.customers, data.profiles, ocrResult]
+  );
 
   const suggestedCases = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -97,12 +145,14 @@ export function ScanReceiptScreen() {
 
         let score = 0;
         if (ocrResult && customer) {
-          const customerName = customer.fullName.toLowerCase();
-          const applicantName = ocrResult.applicantName.toLowerCase();
+          const customerName = normalizePersonName(customer.fullName);
+          const applicantName = normalizePersonName(ocrResult.applicantName);
           const procedureType = ocrResult.procedureType.toLowerCase();
 
-          if (customerName === applicantName) score += 4;
-          else if (customerName.includes(applicantName) || applicantName.includes(customerName)) score += 2;
+          if (applicantName) {
+            if (customerMatch?.customerId === customer.id || customerName === applicantName) score += 4;
+            else if (customerName.includes(applicantName) || applicantName.includes(customerName)) score += 2;
+          }
 
           if (caseItem.serviceType.toLowerCase() === procedureType) score += 3;
           else if (procedureType.includes(caseItem.serviceType.toLowerCase())) score += 1;
@@ -120,7 +170,7 @@ export function ScanReceiptScreen() {
       customer: (typeof data.customers)[number] | undefined;
       score: number;
     }>;
-  }, [availableCases, data, ocrResult, search]);
+  }, [availableCases, customerMatch?.customerId, data, ocrResult, search]);
 
   const suggestedCaseId =
     !selectedCaseId && ocrResult && suggestedCases[0]?.score > 0 ? suggestedCases[0].caseItem.id : "";
@@ -130,6 +180,26 @@ export function ScanReceiptScreen() {
   const selectedCustomer = selectedCase
     ? data.customers.find((customer) => customer.id === selectedCase.customerId) ?? null
     : null;
+  const missingOcrFields = ocrResult ? missingReceiptFields(ocrResult) : [];
+  const normalizedCurrentCode = normalizeSubmissionCode(form.submissionCode).toLocaleLowerCase("vi-VN");
+  const duplicateSubmission = normalizedCurrentCode
+    ? data.submissions.find(
+        (submission) =>
+          normalizeSubmissionCode(submission.submissionCode).toLocaleLowerCase("vi-VN") === normalizedCurrentCode
+      )
+    : undefined;
+  const duplicateCase = duplicateSubmission
+    ? data.cases.find((caseItem) => caseItem.id === duplicateSubmission.caseId)
+    : undefined;
+  const duplicateCustomer = duplicateCase
+    ? data.customers.find((customer) => customer.id === duplicateCase.customerId)
+    : undefined;
+  const confidenceLabel = ocrConfidence >= 85 ? "Cao" : ocrConfidence >= 65 ? "Trung bình" : "Thấp";
+
+  useEffect(() => {
+    if (entryMode !== "ocr") return;
+    void fetch("/api/ocr/receipt").catch(() => undefined);
+  }, [entryMode]);
 
   function setFormField<K extends keyof ReceiptFormState>(key: K, value: ReceiptFormState[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -143,7 +213,8 @@ export function ScanReceiptScreen() {
     setReceiptUploadError("");
     setOcrError("");
     setOcrBillingUrl("");
-    setOcrMode("");
+    setOcrDurationMs(0);
+    setOcrConfidence(0);
     setSubmitError("");
     setOcrResult(null);
     setForm((previous) => ({
@@ -153,11 +224,12 @@ export function ScanReceiptScreen() {
       receivingAgency: "",
       submittedDate: todayIso(),
       expectedReturnDate: "",
-      applicantName: "",
     }));
+    const startedAt = performance.now();
     try {
+      const optimizedFile = await optimizeReceiptImage(file);
       const ocrForm = new FormData();
-      ocrForm.set("file", file);
+      ocrForm.set("file", optimizedFile);
       const ocrResponse = await fetch("/api/ocr/receipt", { method: "POST", body: ocrForm });
       if (!ocrResponse.ok) {
         const ocr = (await ocrResponse.json().catch(() => ({}))) as { error?: string; billingUrl?: string };
@@ -165,36 +237,35 @@ export function ScanReceiptScreen() {
         setOcrBillingUrl(ocr.billingUrl ?? "");
         return;
       }
-      const { result, mode } = (await ocrResponse.json()) as { result: OCRResult; mode?: string };
+      const { result, confidence } = (await ocrResponse.json()) as { result: OCRResult; confidence?: number };
       setOcrResult(result);
-      setOcrMode(mode ?? "");
-      if (mode !== "mock") {
-        const uploadForm = new FormData();
-        uploadForm.set("file", file);
-        const uploadResponse = await fetch("/api/receipts/upload", { method: "POST", body: uploadForm });
-        if (uploadResponse.ok) {
-          const upload = (await uploadResponse.json()) as { url: string };
-          setReceiptImageUrl(upload.url);
-        } else {
-          const upload = (await uploadResponse.json().catch(() => ({}))) as { error?: string };
-          setReceiptImageUrl("");
-          setReceiptUploadError(upload.error ?? "Không thể lưu ảnh biên nhận.");
-        }
+      setOcrConfidence(typeof confidence === "number" ? confidence : 0);
+      const uploadForm = new FormData();
+      uploadForm.set("file", optimizedFile);
+      const uploadResponse = await fetch("/api/receipts/upload", { method: "POST", body: uploadForm });
+      if (uploadResponse.ok) {
+        const upload = (await uploadResponse.json()) as { url: string };
+        setReceiptImageUrl(upload.url);
+      } else {
+        const upload = (await uploadResponse.json().catch(() => ({}))) as { error?: string };
+        setReceiptImageUrl("");
+        setReceiptUploadError(upload.error ?? "Không thể lưu ảnh biên nhận.");
       }
       setForm((previous) => ({
         ...previous,
-        submissionCode: result.submissionCode,
+        submissionCode: normalizeSubmissionCode(result.submissionCode),
         procedureType: result.procedureType,
         receivingAgency: result.receivingAgency,
         submittedDate: result.submittedDate,
         expectedReturnDate: result.expectedReturnDate,
-        applicantName: result.applicantName,
-        submittedBy: result.submittedBy || previous.submittedBy,
       }));
       setEntryMode("ocr");
       if (!linkedCaseId) setSelectedCaseId("");
       setStepIndex(0);
+    } catch (error) {
+      setOcrError(error instanceof Error ? error.message : "Không thể quét biên nhận này.");
     } finally {
+      setOcrDurationMs(Math.round(performance.now() - startedAt));
       setIsProcessing(false);
     }
   }
@@ -205,7 +276,8 @@ export function ScanReceiptScreen() {
     setReceiptUploadError("");
     setOcrError("");
     setOcrBillingUrl("");
-    setOcrMode("");
+    setOcrDurationMs(0);
+    setOcrConfidence(0);
     setSubmitError("");
     if (fileInputRef.current) fileInputRef.current.value = "";
     setForm((prev) => ({
@@ -215,7 +287,6 @@ export function ScanReceiptScreen() {
       receivingAgency: "",
       submittedDate: todayIso(),
       expectedReturnDate: "",
-      applicantName: "",
     }));
   }
 
@@ -226,12 +297,12 @@ export function ScanReceiptScreen() {
 
     if (stepIndex === 1) {
       return Boolean(
+        !duplicateSubmission &&
         form.submissionCode.trim() &&
           form.procedureType.trim() &&
           form.receivingAgency.trim() &&
           form.submittedDate &&
           form.expectedReturnDate &&
-          form.applicantName.trim() &&
           activeAssigneeId
       );
     }
@@ -241,12 +312,12 @@ export function ScanReceiptScreen() {
 
   function handleSubmit() {
     if (!selectedCase) return;
-    const submissionCode = form.submissionCode.trim();
-    const duplicate = data.submissions.some(
-      (submission) => submission.caseId === selectedCase.id && submission.submissionCode.trim().toLowerCase() === submissionCode.toLowerCase()
-    );
-    if (duplicate) {
-      setSubmitError(`Mã biên nhận ${submissionCode} đã có trong hồ sơ này. Hãy quét ảnh mới hoặc sửa mã trước khi lưu.`);
+    const submissionCode = normalizeSubmissionCode(form.submissionCode);
+    if (duplicateSubmission) {
+      const location = [duplicateCustomer?.fullName, duplicateCase?.caseCode].filter(Boolean).join(" · ");
+      setSubmitError(
+        `Mã biên nhận ${submissionCode} đã tồn tại${location ? ` tại ${location}` : ""}. Hãy kiểm tra lại trước khi lưu.`
+      );
       return;
     }
 
@@ -257,8 +328,8 @@ export function ScanReceiptScreen() {
       receivingAgency: form.receivingAgency.trim(),
       submittedDate: form.submittedDate,
       expectedReturnDate: form.expectedReturnDate,
-      submittedBy: form.submittedBy.trim() || currentUser.fullName,
-      applicantName: form.applicantName.trim(),
+      submittedBy: currentUser.fullName,
+      applicantName: selectedCustomer?.fullName ?? "",
       officerNote: form.note.trim() || undefined,
       receiptImageUrl: receiptImageUrl || undefined,
       status: SUBMITTED_STATUS,
@@ -284,7 +355,7 @@ export function ScanReceiptScreen() {
     });
 
     resetOcr();
-    setForm(initialFormState(currentUser.fullName));
+    setForm(initialFormState());
     setSelectedCaseId(linkedCaseId);
     navigate("case-detail", { caseId: selectedCase.id });
   }
@@ -388,7 +459,37 @@ export function ScanReceiptScreen() {
                       <p>Thủ tục: {ocrResult.procedureType}</p>
                       <p>Mã biên nhận: {ocrResult.submissionCode}</p>
                     </div>
-                    {ocrMode === "mock" ? <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs font-bold text-amber-700">Dữ liệu mẫu để test, chưa đọc nội dung ảnh thật.</p> : null}
+                    <p className="text-xs font-semibold text-green-800">
+                      Nguồn quét: Gemini API
+                      {ocrDurationMs > 0 ? ` · ${(ocrDurationMs / 1000).toFixed(1)} giây` : ""}
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      <span
+                        className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${
+                          ocrConfidence >= 85
+                            ? "bg-emerald-100 text-emerald-800"
+                            : ocrConfidence >= 65
+                              ? "bg-amber-100 text-amber-800"
+                              : "bg-rose-100 text-rose-800"
+                        }`}
+                      >
+                        Độ tin cậy: {ocrConfidence}% · {confidenceLabel}
+                      </span>
+                      {customerMatch ? (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2.5 py-1 text-[11px] font-bold text-blue-800">
+                          <BadgeCheck size={13} />
+                          Khớp khách: {customerMatch.customerName} ({customerMatch.confidence}%)
+                        </span>
+                      ) : null}
+                    </div>
+                    <p className="rounded-lg bg-violet-50 px-3 py-2 text-xs font-semibold text-violet-800">Gemini đã đọc và trích xuất dữ liệu từ ảnh. Hãy đối chiếu lại trước khi lưu.</p>
+                    {missingOcrFields.length > 0 ? (
+                      <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">
+                        Cần kiểm tra hoặc nhập thêm: {missingOcrFields.join(", ")}.
+                      </p>
+                    ) : (
+                      <p className="rounded-lg bg-green-100 px-3 py-2 text-xs font-semibold text-green-800">Đã đọc đủ các trường cần thiết. Vui lòng đối chiếu ảnh trước khi lưu.</p>
+                    )}
                     {receiptImageUrl ? <img src={receiptImageUrl} alt="Biên nhận đã quét" className="max-h-52 w-full rounded-xl border border-green-200 object-contain bg-white" /> : null}
                     {receiptUploadError ? <p className="text-xs font-medium text-amber-700">Ảnh chưa lưu được: {receiptUploadError}</p> : null}
                     <button
@@ -400,6 +501,18 @@ export function ScanReceiptScreen() {
                   </div>
                 )}
                 {ocrError ? <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm font-medium text-rose-700"><p>OCR chưa đọc được ảnh này: {ocrError}</p>{ocrBillingUrl ? <a href={ocrBillingUrl} target="_blank" rel="noreferrer" className="mt-2 inline-block font-bold underline">Mở trang bật thanh toán</a> : <p className="mt-2">Bạn có thể thử ảnh rõ hơn hoặc nhập tay.</p>}</div> : null}
+                {duplicateSubmission ? (
+                  <div className="flex items-start gap-2 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
+                    <AlertTriangle size={17} className="mt-0.5 shrink-0" />
+                    <div>
+                      <p className="font-bold">Mã biên nhận đã tồn tại</p>
+                      <p className="mt-1 text-xs">
+                        {duplicateCustomer?.fullName ?? "Khách hàng chưa xác định"}
+                        {duplicateCase ? ` · ${duplicateCase.caseCode}` : ""}
+                      </p>
+                    </div>
+                  </div>
+                ) : null}
               </div>
             )}
 
@@ -475,6 +588,13 @@ export function ScanReceiptScreen() {
               </div>
             )}
 
+            {selectedCase && (
+              <div className="flex items-center justify-between gap-3 rounded-xl border border-blue-100 bg-blue-50 px-3 py-2.5">
+                <div className="min-w-0"><p className="text-xs text-blue-600">Hồ sơ khách hàng</p><p className="truncate text-sm font-bold text-[#1a3a8a]">{selectedCustomer?.fullName ?? "—"} · {selectedCase.caseCode}</p></div>
+                {!linkedCaseId ? <button type="button" onClick={() => setStepIndex(0)} className="shrink-0 text-xs font-bold text-[#1a3a8a] underline">Đổi hồ sơ</button> : null}
+              </div>
+            )}
+
             <div className="space-y-3">
               <label className="block">
                 <span className="text-xs text-gray-400 mb-1 block">Mã biên nhận *</span>
@@ -484,16 +604,24 @@ export function ScanReceiptScreen() {
                   onChange={(event) => setFormField("submissionCode", event.target.value)}
                   className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm"
                 />
+                {duplicateSubmission ? (
+                  <span className="mt-1.5 block text-xs font-semibold text-rose-700">
+                    Mã này đã có ở {duplicateCustomer?.fullName ?? "một khách hàng khác"}
+                    {duplicateCase ? ` · ${duplicateCase.caseCode}` : ""}. Không thể lưu trùng.
+                  </span>
+                ) : null}
               </label>
 
               <label className="block">
                 <span className="text-xs text-gray-400 mb-1 block">Loại thủ tục *</span>
-                <input
-                  type="text"
+                <select
                   value={form.procedureType}
                   onChange={(event) => setFormField("procedureType", event.target.value)}
-                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm"
-                />
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white"
+                >
+                  <option value="">Chọn loại thủ tục</option>
+                  {SERVICE_TYPES.map((serviceType) => <option key={serviceType} value={serviceType}>{serviceType}</option>)}
+                </select>
               </label>
 
               <label className="block">
@@ -502,26 +630,6 @@ export function ScanReceiptScreen() {
                   type="text"
                   value={form.receivingAgency}
                   onChange={(event) => setFormField("receivingAgency", event.target.value)}
-                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm"
-                />
-              </label>
-
-              <label className="block">
-                <span className="text-xs text-gray-400 mb-1 block">Người nộp hồ sơ *</span>
-                <input
-                  type="text"
-                  value={form.applicantName}
-                  onChange={(event) => setFormField("applicantName", event.target.value)}
-                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm"
-                />
-              </label>
-
-              <label className="block">
-                <span className="text-xs text-gray-400 mb-1 block">Nhân viên nộp</span>
-                <input
-                  type="text"
-                  value={form.submittedBy}
-                  onChange={(event) => setFormField("submittedBy", event.target.value)}
                   className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm"
                 />
               </label>
@@ -613,6 +721,13 @@ export function ScanReceiptScreen() {
               <SummaryRow icon={<Building2 size={14} />} label="Cơ quan tiếp nhận" value={form.receivingAgency} />
               <SummaryRow icon={<CalendarDays size={14} />} label="Ngày nộp" value={formatDate(form.submittedDate)} />
               <SummaryRow icon={<CalendarDays size={14} />} label="Ngày hẹn trả" value={formatDate(form.expectedReturnDate)} />
+              {ocrResult ? (
+                <SummaryRow
+                  icon={<BadgeCheck size={14} />}
+                  label="Độ tin cậy OCR"
+                  value={`${ocrConfidence}% · ${confidenceLabel}`}
+                />
+              ) : null}
               <SummaryRow
                 icon={<User size={14} />}
                 label="Người phụ trách"

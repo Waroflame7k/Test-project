@@ -1,15 +1,7 @@
 import type { Metadata, Viewport } from "next";
-import { Plus_Jakarta_Sans } from "next/font/google";
 import "@/app/globals.css";
 import { FirebaseAnalytics } from "@/components/firebase-analytics";
 import { PwaRegister } from "@/components/pwa-register";
-
-const plusJakartaSans = Plus_Jakarta_Sans({
-  subsets: ["latin", "vietnamese"],
-  weight: ["400", "500", "600", "700", "800"],
-  variable: "--font-plus-jakarta",
-  display: "swap",
-});
 
 export const metadata: Metadata = {
   title: "Hồ Sơ BĐS - Nguyễn Khoa BĐS",
@@ -31,8 +23,8 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="vi" className={plusJakartaSans.variable}>
-      <body className={`${plusJakartaSans.className} antialiased`}>
+    <html lang="vi">
+      <body className="antialiased">
         {children}
         <FirebaseAnalytics />
         <PwaRegister />

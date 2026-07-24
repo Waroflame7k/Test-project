@@ -18,12 +18,15 @@ export function todayIso(date = new Date()): string {
 
 export function formatDate(iso?: string): string {
   if (!iso) return "-";
-  return dateFormatter.format(parseIsoDate(iso));
+  const date = parseIsoDate(iso);
+  return Number.isNaN(date.getTime()) ? "-" : dateFormatter.format(date);
 }
 
 export function parseIsoDate(iso: string): Date {
-  const [year, month, day] = iso.split("-").map(Number);
-  return new Date(Date.UTC(year, month - 1, day, 5, 0, 0));
+  const value = iso.trim();
+  const dateOnly = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (dateOnly) return new Date(Date.UTC(Number(dateOnly[1]), Number(dateOnly[2]) - 1, Number(dateOnly[3]), 5, 0, 0));
+  return new Date(value);
 }
 
 export function daysBetween(fromIso: string, toIso: string): number {

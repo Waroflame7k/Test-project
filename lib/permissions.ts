@@ -12,7 +12,8 @@ export type PermissionAction =
   | "view_confidential_documents"
   | "add_documents"
   | "add_submissions"
-  | "complete_tasks";
+  | "complete_tasks"
+  | "manage_case_records";
 
 const permissions: Record<UserRole, PermissionAction[]> = {
   admin: [
@@ -28,6 +29,7 @@ const permissions: Record<UserRole, PermissionAction[]> = {
     "add_documents",
     "add_submissions",
     "complete_tasks",
+    "manage_case_records",
   ],
   manager: [
     "view_all_cases",
@@ -35,12 +37,13 @@ const permissions: Record<UserRole, PermissionAction[]> = {
     "view_reports",
     "update_progress",
     "delete_case",
-    "view_finance",
+    "add_documents",
     "add_submissions",
     "complete_tasks",
+    "manage_case_records",
   ],
-  legal_staff: ["update_progress", "add_documents", "add_submissions", "complete_tasks"],
-  accountant: ["view_finance", "edit_finance", "view_reports", "complete_tasks"],
+  legal_staff: ["update_progress", "add_documents", "add_submissions", "complete_tasks", "manage_case_records"],
+  accountant: ["view_reports", "complete_tasks"],
   viewer: [],
 };
 

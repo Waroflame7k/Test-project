@@ -18,6 +18,7 @@ import {
   Lock,
   ArrowRightLeft,
   Camera,
+  Pencil,
   Trash2,
 } from "lucide-react";
 import { useApp, useCurrentUser } from "@/features/app-shell/app-context";
@@ -30,7 +31,7 @@ import { formatVnd } from "@/lib/money";
 import { paidByCustomer, receivableForCase } from "@/lib/case-utils";
 import { can } from "@/lib/permissions";
 import { CASE_STATUSES } from "@/lib/constants";
-import type { Case, CaseStatus, CustodyTransfer, PaymentType, Priority, SubmissionStatus, TaskStatus } from "@/types/domain";
+import type { Case, CaseStatus, CustodyTransfer, DocumentRecord, PaymentType, Priority, SubmissionStatus, TaskStatus } from "@/types/domain";
 
 const TRANSFER_TYPES: CustodyTransfer["transferType"][] = [
   "Nhận từ khách",
@@ -52,7 +53,7 @@ const TABS = [
 type TabKey = (typeof TABS)[number]["key"];
 
 export function CaseDetailScreen({ caseId }: { caseId: string }) {
-  const { data, navigate, updateCase, archiveCase, addSubmission, addTask, completeTask, addPayment, addDocument, addCustodyTransfer, addActivityLog } =
+  const { data, navigate, updateCase, archiveCase, addSubmission, deleteSubmission, addTask, completeTask, deleteTask, addPayment, deletePayment, addDocument, updateDocument, deleteDocument, addCustodyTransfer, addActivityLog } =
     useApp();
   const currentUser = useCurrentUser();
   const [activeTab, setActiveTab] = useState<TabKey>("info");
@@ -64,6 +65,7 @@ export function CaseDetailScreen({ caseId }: { caseId: string }) {
   const [documentModalOpen, setDocumentModalOpen] = useState(false);
   const [transferModalOpen, setTransferModalOpen] = useState(false);
   const [transferDocId, setTransferDocId] = useState("");
+  const [editingDocument, setEditingDocument] = useState<DocumentRecord | null>(null);
 
   const maybeCase = data.cases.find((c) => c.id === caseId && !c.archivedAt);
   if (!maybeCase) {
@@ -82,6 +84,7 @@ export function CaseDetailScreen({ caseId }: { caseId: string }) {
     .filter(Boolean);
 
   const caseSubmissions = data.submissions.filter((s) => s.caseId === caseId);
+  const receiptImageSubmissions = caseSubmissions.filter((submission) => Boolean(submission.receiptImageUrl));
   const caseDocuments = data.documents.filter((d) => d.caseId === caseId);
   const originalDocuments = caseDocuments.filter((document) => document.originalOrCopy === "Bản chính");
   const caseTasks = data.tasks.filter((t) => t.caseId === caseId);
@@ -101,6 +104,8 @@ export function CaseDetailScreen({ caseId }: { caseId: string }) {
   const canEditFinance = can(currentUser.role, "edit_finance");
   const canCompleteTasks = can(currentUser.role, "complete_tasks");
   const canDeleteCase = can(currentUser.role, "delete_case");
+  const canManageRecords = can(currentUser.role, "manage_case_records");
+  const visibleTabs = TABS.filter((tab) => tab.key !== "payments" || canViewFinance);
 
   function handleStatusUpdate() {
     if (!selectedStatus) return;
@@ -285,6 +290,12 @@ export function CaseDetailScreen({ caseId }: { caseId: string }) {
 
         {activeTab === "submissions" && (
           <div className="space-y-3">
+            {receiptImageSubmissions.length > 0 && (
+              <section className="rounded-2xl border border-blue-100 bg-blue-50 p-4">
+                <div className="mb-3 flex items-start justify-between gap-3"><div><h3 className="text-sm font-bold text-[#1a3a8a]">Ảnh biên nhận đã lưu</h3><p className="mt-1 text-xs text-blue-700">Ảnh thuộc các lần nộp bên dưới. Bấm ảnh để xem bản gốc.</p></div><span className="rounded-full bg-white px-2.5 py-1 text-xs font-bold text-[#1a3a8a]">{receiptImageSubmissions.length} ảnh</span></div>
+                <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">{receiptImageSubmissions.map((submission) => <a key={submission.id} href={submission.receiptImageUrl} target="_blank" rel="noreferrer" className="overflow-hidden rounded-xl border border-blue-100 bg-white"><img src={submission.receiptImageUrl} alt={`Biên nhận ${submission.submissionCode}`} className="h-32 w-full object-cover bg-gray-50" /><p className="truncate px-2 py-2 font-mono text-xs font-bold text-[#1a3a8a]">{submission.submissionCode}</p></a>)}</div>
+              </section>
+            )}
             {caseSubmissions.length === 0 ? (
               <EmptyState title="Chưa có lần nộp" message="Nhấn nút bên dưới để thêm lần nộp hồ sơ." />
             ) : (
@@ -295,11 +306,7 @@ export function CaseDetailScreen({ caseId }: { caseId: string }) {
                       <p className="text-sm font-bold text-[#1a3a8a]">{sub.submissionCode}</p>
                       <p className="text-xs text-gray-500 mt-0.5">{sub.procedureType}</p>
                     </div>
-                    <span
-                      className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${submissionStatusColors[sub.status]}`}
-                    >
-                      {sub.status}
-                    </span>
+                    <div className="flex items-center gap-2"><span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${submissionStatusColors[sub.status]}`}>{sub.status}</span>{canManageRecords ? <button type="button" onClick={() => { if (window.confirm(`Xóa lần nộp ${sub.submissionCode}?`)) deleteSubmission(sub.id); }} className="rounded-lg p-1.5 text-rose-600 hover:bg-rose-50" aria-label="Xóa lần nộp"><Trash2 size={15} /></button> : null}</div>
                   </div>
                   <div className="text-xs text-gray-500 space-y-0.5">
                     <p>Cơ quan: {sub.receivingAgency}</p>
@@ -418,14 +425,11 @@ export function CaseDetailScreen({ caseId }: { caseId: string }) {
                         })}
                       </div>
                     )}
-                    {canAddDocument && (
-                      <button
-                        onClick={() => { setTransferDocId(doc.id); setTransferModalOpen(true); }}
-                        className="mt-2 text-xs text-[#1a3a8a] font-semibold flex items-center gap-1 hover:text-[#ea580c] transition-colors"
-                      >
-                        <ArrowRightLeft size={12} /> Bàn giao
-                      </button>
-                    )}
+                    <div className="mt-3 flex flex-wrap gap-3 text-xs font-semibold">
+                      {canAddDocument ? <button onClick={() => { setTransferDocId(doc.id); setTransferModalOpen(true); }} className="flex items-center gap-1 text-[#1a3a8a] hover:text-[#ea580c] transition-colors"><ArrowRightLeft size={12} /> Bàn giao</button> : null}
+                      {canManageRecords ? <button onClick={() => setEditingDocument(doc)} className="flex items-center gap-1 text-[#1a3a8a] hover:text-[#ea580c] transition-colors"><Pencil size={12} /> Sửa</button> : null}
+                      {canManageRecords ? <button onClick={() => { if (window.confirm(`Xóa tài liệu ${doc.documentName} và lịch sử bàn giao liên quan?`)) deleteDocument(doc.id); }} className="flex items-center gap-1 text-rose-600 hover:text-rose-800"><Trash2 size={12} /> Xóa</button> : null}
+                    </div>
                   </div>
                 );
               })
@@ -478,6 +482,7 @@ export function CaseDetailScreen({ caseId }: { caseId: string }) {
                       Hạn: {formatDate(task.dueDate)} {task.dueTime ?? ""}
                     </p>
                   </div>
+                  {canManageRecords ? <button type="button" onClick={() => { if (window.confirm(`Xóa công việc ${task.title}?`)) deleteTask(task.id); }} className="rounded-lg p-1.5 text-rose-600 hover:bg-rose-50" aria-label="Xóa công việc"><Trash2 size={15} /></button> : null}
                 </div>
               ))
             )}
@@ -523,11 +528,7 @@ export function CaseDetailScreen({ caseId }: { caseId: string }) {
                     <div key={payment.id} className="bg-white rounded-2xl shadow-sm p-4">
                       <div className="flex items-start justify-between mb-1">
                         <p className="text-sm font-semibold text-gray-800">{payment.category}</p>
-                        <span
-                          className={`text-xs font-semibold px-2 py-0.5 rounded-full ${paymentTypeColors[payment.paymentType]}`}
-                        >
-                          {payment.paymentType}
-                        </span>
+                        <div className="flex items-center gap-2"><span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${paymentTypeColors[payment.paymentType]}`}>{payment.paymentType}</span>{canEditFinance ? <button type="button" onClick={() => { if (window.confirm(`Xóa giao dịch ${payment.category}?`)) deletePayment(payment.id); }} className="rounded-lg p-1.5 text-rose-600 hover:bg-rose-50" aria-label="Xóa giao dịch"><Trash2 size={15} /></button> : null}</div>
                       </div>
                       <p className="text-base font-bold text-[#1a3a8a]">{formatVnd(payment.amount)}</p>
                       <p className="text-xs text-gray-400 mt-1">
@@ -620,7 +621,7 @@ export function CaseDetailScreen({ caseId }: { caseId: string }) {
 
         <div className="overflow-x-auto px-4 scrollbar-none">
           <div className="flex gap-0 border-b border-gray-200 min-w-max">
-            {TABS.map((tab) => (
+            {visibleTabs.map((tab) => (
               <button
                 key={tab.key}
                 onClick={() => setActiveTab(tab.key)}
@@ -734,7 +735,7 @@ export function CaseDetailScreen({ caseId }: { caseId: string }) {
         {/* Right panel: tabs + content */}
         <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
           <div className="flex gap-0 border-b border-gray-200 shrink-0">
-            {TABS.map((tab) => (
+            {visibleTabs.map((tab) => (
               <button
                 key={tab.key}
                 onClick={() => setActiveTab(tab.key)}
@@ -827,6 +828,25 @@ export function CaseDetailScreen({ caseId }: { caseId: string }) {
         onSubmit={(values) => {
           addDocument({ ...values, caseId });
           setDocumentModalOpen(false);
+        }}
+      />
+
+      <EditDocumentModal
+        key={editingDocument?.id ?? "no-document"}
+        document={editingDocument}
+        onClose={() => setEditingDocument(null)}
+        onSubmit={(updates) => {
+          if (!editingDocument) return;
+          updateDocument(editingDocument.id, updates);
+          addActivityLog({
+            organizationId: caseItem.organizationId,
+            caseId,
+            actorId: currentUser.id,
+            action: `Cập nhật tài liệu: ${updates.documentName}`,
+            entityType: "documents",
+            entityId: editingDocument.id,
+          });
+          setEditingDocument(null);
         }}
       />
 
@@ -1242,6 +1262,95 @@ function DocumentModal({
           className="w-full bg-[#ea580c] text-white font-bold rounded-xl py-3"
         >
           Lưu
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
+function EditDocumentModal({
+  document,
+  onClose,
+  onSubmit,
+}: {
+  document: DocumentRecord | null;
+  onClose: () => void;
+  onSubmit: (updates: Pick<DocumentRecord, "documentName" | "documentType" | "originalOrCopy" | "quantity" | "confidential" | "storageLocation">) => void;
+}) {
+  const [documentName, setDocumentName] = useState(document?.documentName ?? "");
+  const [documentType, setDocumentType] = useState(document?.documentType ?? "");
+  const [originalOrCopy, setOriginalOrCopy] = useState<DocumentRecord["originalOrCopy"]>(document?.originalOrCopy ?? "Bản chính");
+  const [quantity, setQuantity] = useState(String(document?.quantity ?? 1));
+  const [storageLocation, setStorageLocation] = useState(document?.storageLocation ?? "");
+  const [confidential, setConfidential] = useState(document?.confidential ?? false);
+
+  return (
+    <Modal open={Boolean(document)} onClose={onClose} title="Sửa tài liệu">
+      <div className="space-y-3">
+        <input
+          className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm"
+          placeholder="Tên tài liệu"
+          value={documentName}
+          onChange={(event) => setDocumentName(event.target.value)}
+        />
+        <input
+          className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm"
+          placeholder="Loại tài liệu"
+          value={documentType}
+          onChange={(event) => setDocumentType(event.target.value)}
+        />
+        <div className="grid grid-cols-2 gap-2">
+          <select
+            className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm"
+            value={originalOrCopy}
+            onChange={(event) => setOriginalOrCopy(event.target.value as DocumentRecord["originalOrCopy"])}
+          >
+            <option>Bản chính</option>
+            <option>Bản sao</option>
+            <option>Bản scan</option>
+          </select>
+          <input
+            className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm"
+            placeholder="Số lượng"
+            type="number"
+            min="1"
+            value={quantity}
+            onChange={(event) => setQuantity(event.target.value)}
+          />
+        </div>
+        <input
+          className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm"
+          placeholder="Vị trí lưu trữ (tùy chọn)"
+          value={storageLocation}
+          onChange={(event) => setStorageLocation(event.target.value)}
+        />
+        <label className="flex items-center gap-2 text-sm text-gray-700">
+          <input
+            type="checkbox"
+            checked={confidential}
+            onChange={(event) => setConfidential(event.target.checked)}
+            className="rounded"
+          />
+          Tài liệu mật
+        </label>
+        <button
+          type="button"
+          onClick={() => {
+            const normalizedName = documentName.trim();
+            const normalizedType = documentType.trim();
+            if (!normalizedName || !normalizedType) return;
+            onSubmit({
+              documentName: normalizedName,
+              documentType: normalizedType,
+              originalOrCopy,
+              quantity: Math.max(1, Number(quantity) || 1),
+              confidential,
+              storageLocation: storageLocation.trim(),
+            });
+          }}
+          className="w-full rounded-xl bg-[#ea580c] py-3 font-bold text-white"
+        >
+          Lưu thay đổi
         </button>
       </div>
     </Modal>

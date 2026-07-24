@@ -14,6 +14,7 @@ export const SERVICE_TYPES: ServiceType[] = [
   "Cấp lại",
   "Đính chính",
   "Trích lục",
+  "Đo đạc",
   "Xin phép xây dựng",
   "Hồ sơ bồi thường",
   "Khác"

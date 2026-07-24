@@ -1,15 +1,50 @@
 import { describe, expect, it } from "vitest";
 import { buildAlerts } from "@/lib/alerts";
 import { generateCaseCode, receivableForCase } from "@/lib/case-utils";
-import { daysUntil, isDueSoon, isOverdue } from "@/lib/date";
+import { daysUntil, formatDate, isDueSoon, isOverdue } from "@/lib/date";
 import { calculateReceivable } from "@/lib/money";
 import { can } from "@/lib/permissions";
 import { currentMonthRange, financeSummary } from "@/lib/reporting";
 import { demoData } from "@/services/demo-data";
-import { MockOCRProvider, parseReceiptText } from "@/services/ocr";
 import { DemoRepository } from "@/services/repository";
+import { matchCustomerByName, normalizeProcedureType, normalizeSubmissionCode } from "@/services/ocr";
+import { applyAppDataMutation, buildAppDataMutation } from "@/lib/app-data-mutation";
 
 describe("nghiệp vụ hồ sơ BĐS", () => {
+  it("chuẩn hóa kết quả OCR theo danh mục và giữ phần mã biên nhận hợp lệ", () => {
+    expect(normalizeProcedureType("Trích đo bản đồ địa chính")).toBe("Đo đạc");
+    expect(normalizeProcedureType("Thủ tục chuyển nhượng quyền sử dụng đất")).toBe("Sang tên");
+    expect(normalizeProcedureType("Nội dung không xác định")).toBe("");
+    expect(normalizeSubmissionCode("2047/ĐĐKT_2026/TNHS")).toBe("2047/ĐĐKT_2026");
+    expect(normalizeSubmissionCode("H53.183-260626-0130/TNHS")).toBe("H53.183-260626-0130");
+  });
+
+  it("đối chiếu tên OCR không dấu với khách hàng hiện có", () => {
+    const customer = demoData.customers[0];
+    const match = matchCustomerByName(
+      customer.fullName.normalize("NFD").replace(/[\u0300-\u036f]/g, ""),
+      demoData.customers,
+      demoData.profiles
+    );
+    expect(match?.customerId).toBe(customer.id);
+    expect(match?.confidence).toBe(100);
+  });
+
+  it("đồng bộ mutation giữ bản ghi sửa và xóa thật bản ghi đã bỏ", () => {
+    const current = structuredClone(demoData);
+    const removedPaymentId = current.payments[0].id;
+    const next = {
+      ...current,
+      payments: current.payments.slice(1),
+      tasks: current.tasks.map((task, index) => (index === 0 ? { ...task, title: "Công việc đã sửa" } : task)),
+    };
+    const mutation = buildAppDataMutation(current, next);
+    const applied = applyAppDataMutation(current, mutation);
+
+    expect(mutation.collections.payments?.deleteIds).toContain(removedPaymentId);
+    expect(applied.payments.some((payment) => payment.id === removedPaymentId)).toBe(false);
+    expect(applied.tasks[0].title).toBe("Công việc đã sửa");
+  });
   it("sinh mã hồ sơ HS-YYYY-XXXX kế tiếp", () => {
     expect(generateCaseCode(2026, ["HS-2026-0001", "HS-2026-0012", "HS-2025-0099"])).toBe("HS-2026-0013");
   });
@@ -18,6 +53,11 @@ describe("nghiệp vụ hồ sơ BĐS", () => {
     expect(daysUntil("2026-07-23", "2026-07-21")).toBe(2);
     expect(isDueSoon("2026-07-23", "2026-07-21", 5)).toBe(true);
     expect(isOverdue("2026-07-20", "2026-07-21")).toBe(true);
+  });
+
+  it("hiển thị được ngày ISO có cả giờ và không làm lỗi dữ liệu ngày hỏng", () => {
+    expect(formatDate("2026-06-24T09:10:00+07:00")).toBe("24/06/2026");
+    expect(formatDate("không phải ngày")).toBe("-");
   });
 
   it("cộng chi phí đã chi vào số tiền khách còn phải thanh toán", () => {
@@ -35,9 +75,9 @@ describe("nghiệp vụ hồ sơ BĐS", () => {
 
   it("kiểm tra quyền người dùng", () => {
     expect(can("admin", "delete_case")).toBe(true);
-    expect(can("manager", "view_finance")).toBe(true);
+    expect(can("manager", "view_finance")).toBe(false);
     expect(can("legal_staff", "edit_finance")).toBe(false);
-    expect(can("accountant", "edit_finance")).toBe(true);
+    expect(can("accountant", "edit_finance")).toBe(false);
   });
 
   it("tạo hồ sơ mới qua repository", () => {
@@ -107,22 +147,6 @@ describe("nghiệp vụ hồ sơ BĐS", () => {
     const document = repository.getData().documents.find((item) => item.id === "doc-001");
     expect(document?.currentHolderId).toBeUndefined();
     expect(document?.returnedDate).toBe("2026-07-23");
-  });
-
-  it("tách dữ liệu OCR từ đúng nội dung biên nhận", () => {
-    const result = parseReceiptText("Mã hồ sơ: H24.221-010726-0075\nCấp đổi giấy chứng nhận\nHành chính công xã Đức Hòa\nHọ và tên: Nguyễn Văn A\nNgày nộp: 01/07/2026\nHẹn trả: 19/07/2026");
-    expect(result.submissionCode).toBe("H24.221-010726-0075");
-    expect(result.submittedDate).toBe("2026-07-01");
-    expect(result.expectedReturnDate).toBe("2026-07-19");
-    expect(result.applicantName).toBe("Nguyễn Văn A");
-  });
-
-  it("tạo dữ liệu mock khác nhau cho mỗi ảnh test", async () => {
-    const provider = new MockOCRProvider();
-    const first = await provider.extractReceipt(new File(["first"], "first.jpg", { type: "image/jpeg", lastModified: 1_784_000_000_000 }));
-    const second = await provider.extractReceipt(new File(["second"], "second.jpg", { type: "image/jpeg", lastModified: 1_785_000_000_000 }));
-    expect(first.submissionCode).not.toBe(second.submissionCode);
-    expect(first.procedureType).toContain("Dữ liệu mẫu");
   });
 
   it("tạo cảnh báo theo rule đến hạn, quá hạn và công nợ", () => {

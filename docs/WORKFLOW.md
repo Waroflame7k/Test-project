@@ -15,7 +15,7 @@
 
 - Mỗi lần nộp tạo một record `submissions`.
 - Một vụ việc có thể có nhiều lần nộp, ví dụ tách thửa rồi đăng ký biến động/tặng cho.
-- Biên nhận có thể nhập tay hoặc qua luồng OCR mock, nhưng chỉ lưu sau khi người dùng xác nhận.
+- Biên nhận có thể nhập tay hoặc quét bằng Gemini API, nhưng chỉ lưu sau khi người dùng xác nhận.
 
 ## Bổ sung
 

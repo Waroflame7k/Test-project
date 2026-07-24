@@ -19,9 +19,10 @@ import { demoData } from "@/services/demo-data";
 import { generateCaseCode } from "@/lib/case-utils";
 import { CASE_STATUSES, DEMO_PASSWORD } from "@/lib/constants";
 import { normalizeAppData } from "@/lib/data-normalization";
+import { buildAppDataMutation, hasAppDataMutationChanges } from "@/lib/app-data-mutation";
 
 const STORAGE_KEY = "bds-data";
-let remoteSaveTimeout: number | undefined;
+let mutationQueue = Promise.resolve();
 
 async function loadData(): Promise<AppData> {
   if (typeof window === "undefined") return demoData;
@@ -42,26 +43,33 @@ async function loadData(): Promise<AppData> {
   return demoData;
 }
 
-function saveData(data: AppData): void {
+function saveLocalData(data: AppData): void {
   if (typeof window === "undefined") return;
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
   } catch {
     // ignore storage errors
   }
-  if (remoteSaveTimeout) window.clearTimeout(remoteSaveTimeout);
-  // Combine rapid form updates into one Firestore write while retaining local data immediately.
-  remoteSaveTimeout = window.setTimeout(() => {
-    void fetch("/api/app-data", {
-      method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(data),
-    }).catch(() => {
-      // ignore network errors and keep local fallback
+}
+
+function persistMutation(previous: AppData, next: AppData) {
+  const mutation = buildAppDataMutation(previous, next);
+  if (!hasAppDataMutationChanges(mutation)) return;
+
+  mutationQueue = mutationQueue
+    .then(async () => {
+      const response = await fetch("/api/app-data", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(mutation),
+      });
+      if (!response.ok) throw new Error("Không thể đồng bộ thay đổi dữ liệu.");
+    })
+    .catch(() => {
+      // Keep the local copy available; the next realtime refresh will reconcile server data.
     });
-  }, 250);
 }
 
 interface AppContextValue {
@@ -81,10 +89,15 @@ interface AppContextValue {
   archiveCases: (caseIds: string[]) => void;
   bulkUpdateCases: (caseIds: string[], updates: Partial<Pick<Case, "status" | "assignedTo" | "priority">>) => void;
   addSubmission: (submission: Omit<Submission, "id" | "createdAt" | "updatedAt">) => void;
+  deleteSubmission: (submissionId: string) => void;
   addTask: (task: Omit<CaseTask, "id" | "createdAt">) => void;
   completeTask: (taskId: string) => void;
+  deleteTask: (taskId: string) => void;
   addPayment: (payment: Omit<Payment, "id">) => Payment;
+  deletePayment: (paymentId: string) => void;
   addDocument: (doc: Omit<DocumentRecord, "id" | "createdAt">) => void;
+  updateDocument: (documentId: string, updates: Partial<DocumentRecord>) => void;
+  deleteDocument: (documentId: string) => void;
   addCustodyTransfer: (transfer: Omit<CustodyTransfer, "id">) => void;
   addActivityLog: (log: Omit<ActivityLog, "id" | "createdAt">) => void;
 }
@@ -110,6 +123,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [currentScreen, setCurrentScreen] = useState<string>("dashboard");
   const [screenParams, setScreenParams] = useState<Record<string, unknown>>({});
   const initialized = useRef(false);
+  const realtimeRefreshInFlight = useRef(false);
 
   useEffect(() => {
     if (!initialized.current) {
@@ -117,7 +131,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       void (async () => {
         const loaded = await loadData();
         setData(loaded);
-        saveData(loaded);
+        saveLocalData(loaded);
         const savedUserId = typeof window !== "undefined" ? localStorage.getItem("bds-user-id") : null;
         if (savedUserId) {
           const profile = loaded.profiles.find((p) => p.id === savedUserId);
@@ -128,38 +142,37 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (!initialized.current || typeof window === "undefined") {
-      return;
-    }
-    const intervalId = window.setInterval(() => {
-      void (async () => {
-        try {
-          const remote = await loadData();
-          setData((prev) => {
-            const prevSerialized = JSON.stringify(prev);
-            const remoteSerialized = JSON.stringify(remote);
-            if (prevSerialized === remoteSerialized) {
-              return prev;
-            }
-            try {
-              localStorage.setItem(STORAGE_KEY, remoteSerialized);
-            } catch {
-              // ignore storage errors
-            }
-            return remote;
-          });
-        } catch {
-          // ignore polling errors
-        }
-      })();
-    }, 15000);
-    return () => window.clearInterval(intervalId);
+    if (typeof window === "undefined" || typeof EventSource === "undefined") return;
+
+    const source = new EventSource("/api/app-data/events");
+    const refresh = () => {
+      if (realtimeRefreshInFlight.current) return;
+      realtimeRefreshInFlight.current = true;
+      void loadData()
+        .then((remote) => {
+          saveLocalData(remote);
+          setData((previous) => (JSON.stringify(previous) === JSON.stringify(remote) ? previous : remote));
+        })
+        .finally(() => {
+          realtimeRefreshInFlight.current = false;
+        });
+    };
+    const stopUnavailableStream = () => source.close();
+
+    source.addEventListener("revision", refresh);
+    source.addEventListener("unavailable", stopUnavailableStream);
+    return () => {
+      source.removeEventListener("revision", refresh);
+      source.removeEventListener("unavailable", stopUnavailableStream);
+      source.close();
+    };
   }, []);
 
   const mutate = useCallback((updater: (prev: AppData) => AppData) => {
     setData((prev) => {
       const next = updater(prev);
-      saveData(next);
+      saveLocalData(next);
+      persistMutation(prev, next);
       return next;
     });
   }, []);
@@ -323,7 +336,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     (task: Omit<CaseTask, "id" | "createdAt">) => {
       const newTask: CaseTask = { ...task, id: genId("task"), createdAt: new Date().toISOString() };
       mutate((prev) => ({ ...prev, tasks: [...prev.tasks, newTask] }));
+      // Notify immediately instead of waiting for the debounced data synchronization.
+      void fetch("/api/telegram/task-created", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          task: newTask,
+          data: { cases: data.cases, customers: data.customers, profiles: data.profiles },
+        }),
+      }).catch(() => {
+        // A Telegram failure must not interrupt creation of the task.
+      });
     },
+    [data.cases, data.customers, data.profiles, mutate]
+  );
+
+  const deleteSubmission = useCallback(
+    (submissionId: string) => mutate((prev) => ({ ...prev, submissions: prev.submissions.filter((submission) => submission.id !== submissionId) })),
     [mutate]
   );
 
@@ -339,6 +368,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [mutate]
   );
 
+  const deleteTask = useCallback(
+    (taskId: string) => mutate((prev) => ({ ...prev, tasks: prev.tasks.filter((task) => task.id !== taskId) })),
+    [mutate]
+  );
+
   const addPayment = useCallback(
     (payment: Omit<Payment, "id">): Payment => {
       const newPayment: Payment = { ...payment, id: genId("pay") };
@@ -348,10 +382,33 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [mutate]
   );
 
+  const deletePayment = useCallback(
+    (paymentId: string) => mutate((prev) => ({ ...prev, payments: prev.payments.filter((payment) => payment.id !== paymentId) })),
+    [mutate]
+  );
+
   const addDocument = useCallback(
     (doc: Omit<DocumentRecord, "id" | "createdAt">) => {
       const newDoc: DocumentRecord = { ...doc, id: genId("doc"), createdAt: new Date().toISOString() };
       mutate((prev) => ({ ...prev, documents: [...prev.documents, newDoc] }));
+    },
+    [mutate]
+  );
+
+  const updateDocument = useCallback(
+    (documentId: string, updates: Partial<DocumentRecord>) => {
+      mutate((prev) => ({ ...prev, documents: prev.documents.map((document) => (document.id === documentId ? { ...document, ...updates } : document)) }));
+    },
+    [mutate]
+  );
+
+  const deleteDocument = useCallback(
+    (documentId: string) => {
+      mutate((prev) => ({
+        ...prev,
+        documents: prev.documents.filter((document) => document.id !== documentId),
+        custodyTransfers: prev.custodyTransfers.filter((transfer) => transfer.documentId !== documentId),
+      }));
     },
     [mutate]
   );
@@ -401,10 +458,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     archiveCases,
     bulkUpdateCases,
     addSubmission,
+    deleteSubmission,
     addTask,
     completeTask,
+    deleteTask,
     addPayment,
+    deletePayment,
     addDocument,
+    updateDocument,
+    deleteDocument,
     addCustodyTransfer,
     addActivityLog,
   };

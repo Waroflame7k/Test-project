@@ -2,6 +2,7 @@ node_modules/
 .next/
 .vercel/
 .env.local
+.env*.local
 .codex-dev.log
 .codex-dev.err.log
 tsconfig.tsbuildinfo

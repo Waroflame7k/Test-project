@@ -3,7 +3,7 @@ import { daysUntil, formatDate, todayIso } from "@/lib/date";
 import { isCaseActive } from "@/lib/case-utils";
 import { getFirebaseAdminDb } from "@/services/firebase-admin";
 import { readSharedAppData } from "@/services/shared-store";
-import type { AppData, Case, Submission } from "@/types/domain";
+import type { AppData, Case, CaseTask, Submission } from "@/types/domain";
 
 const SUBSCRIBERS_COLLECTION = "telegram_subscribers";
 const NEAR_DUE_DAYS = 5;
@@ -103,6 +103,21 @@ function buildDailyDigest(data: AppData) {
   return { text: lines.join("\n"), dueTodayTasks: dueTodayTasks.length, nearDueCases: nearDueCases.length };
 }
 
+type TaskNotificationData = Pick<AppData, "cases" | "customers" | "profiles">;
+
+function buildTaskCreatedMessage(data: TaskNotificationData, task: CaseTask) {
+  const caseItem = data.cases.find((item) => item.id === task.caseId);
+  const customer = data.customers.find((item) => item.id === caseItem?.customerId);
+  const deadline = `${formatDate(task.dueDate)}${task.dueTime ? ` lúc ${task.dueTime}` : ""}`;
+
+  return [
+    "[CÔNG VIỆC MỚI]",
+    `Nội dung: ${task.title}`,
+    `Khách hàng: ${customer?.fullName ?? "Chưa xác định"}`,
+    `Hạn: ${deadline}`,
+  ].join("\n");
+}
+
 export function isValidTelegramWebhook(request: Request) {
   const secret = process.env.TELEGRAM_WEBHOOK_SECRET?.trim();
   return Boolean(secret && request.headers.get("x-telegram-bot-api-secret-token") === secret);
@@ -148,4 +163,26 @@ export async function sendDailyTelegramDigest() {
     }
   }
   return { sent, subscribers: subscribers.size, ...digest };
+}
+
+export async function sendTelegramTaskCreatedNotifications(data: TaskNotificationData, tasks: CaseTask[]) {
+  if (!tasks.length) return { sent: 0, subscribers: 0, tasks: 0 };
+
+  const db = getFirebaseAdminDb();
+  if (!db || !process.env.TELEGRAM_BOT_TOKEN?.trim()) {
+    return { sent: 0, subscribers: 0, tasks: tasks.length };
+  }
+
+  const subscribers = await db.collection(SUBSCRIBERS_COLLECTION).where("active", "==", true).get();
+  const messages = tasks.flatMap((task) =>
+    subscribers.docs.map(async (subscriber) => {
+      await sendTelegramMessage(String(subscriber.data().chatId), buildTaskCreatedMessage(data, task));
+    })
+  );
+  const results = await Promise.allSettled(messages);
+  return {
+    sent: results.filter((result) => result.status === "fulfilled").length,
+    subscribers: subscribers.size,
+    tasks: tasks.length,
+  };
 }

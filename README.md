@@ -6,6 +6,7 @@ Ung dung quan ly ho so bat dong san, bien nhan va cong viec noi bo.
 
 - Next.js, React, TypeScript va Tailwind CSS.
 - Firestore la nguon du lieu dung chung.
+- Du lieu duoc tach theo collection trong `organizations/{organizationId}` va dong bo realtime.
 - Firebase Cloud Messaging cho thong bao web.
 - Telegram bot gui bao cao cong viec den han va ho so sap han luc 08:00 (Asia/Ho_Chi_Minh).
 - Vercel la nen tang trien khai production.
@@ -35,6 +36,11 @@ npm run firebase:seed
 ```
 
 Lenh nay seed du lieu mau len Firestore khi can thiet.
+
+Du lieu cu trong `system_state/app_data` duoc tu dong sao chep sang cac collection
+`customers`, `cases`, `submissions`, `documents`, `tasks`, `payments` va cac
+collection nghiep vu khac trong lan doc dau tien. Document cu duoc giu lai de
+doi chieu, khong bi xoa trong qua trinh migration.
 
 ## Telegram
 

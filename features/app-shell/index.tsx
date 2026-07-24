@@ -121,6 +121,7 @@ function AppShellInner() {
   const managementTabs = navigationTabs.filter((tab) => ["reports", "documents", "finance"].includes(tab.key));
   const showBack =
     currentScreen === "case-detail" || currentScreen === "create-case" || currentScreen === "scan-receipt" || currentScreen === "task-calendar";
+  const backScreen = currentScreen === "case-detail" && screenParams.returnTo === "tasks" ? "tasks" : activeTab;
   const caseId = typeof screenParams.caseId === "string" ? screenParams.caseId : "";
 
   return (
@@ -181,7 +182,7 @@ function AppShellInner() {
           <div className="luxe-panel-strong rounded-[0.95rem] px-3 py-2 md:rounded-[1.1rem] md:px-4 md:py-3 flex items-center justify-between gap-2 md:gap-3">
             {showBack ? (
               <button
-                onClick={() => navigate(activeTab)}
+                onClick={() => navigate(backScreen)}
                 className="md:hidden h-9 w-9 flex items-center justify-center rounded-full luxe-button-ghost transition-colors"
               >
                 <ChevronLeft size={20} />

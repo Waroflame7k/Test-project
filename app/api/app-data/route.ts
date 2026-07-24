@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { readSharedAppData, upsertSharedAppData } from "@/services/shared-store";
+import type { AppDataMutation } from "@/lib/app-data-mutation";
+import { applySharedAppDataMutation, readSharedAppData, upsertSharedAppData } from "@/services/shared-store";
 import type { AppData } from "@/types/domain";
 
 export const runtime = "nodejs";
@@ -17,6 +18,16 @@ export async function PUT(request: Request) {
   const incoming = (await request.json()) as AppData;
   const merged = await upsertSharedAppData(incoming);
   return NextResponse.json(merged, {
+    headers: {
+      "Cache-Control": "no-store",
+    },
+  });
+}
+
+export async function PATCH(request: Request) {
+  const mutation = (await request.json()) as AppDataMutation;
+  const result = await applySharedAppDataMutation(mutation);
+  return NextResponse.json(result, {
     headers: {
       "Cache-Control": "no-store",
     },

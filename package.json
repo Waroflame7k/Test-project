@@ -14,20 +14,14 @@
     "firebase:seed": "node scripts/firebase-seed-state.mjs"
   },
   "dependencies": {
-    "@hookform/resolvers": "5.2.2",
-    "class-variance-authority": "0.7.1",
-    "clsx": "2.1.1",
+    "@fontsource/be-vietnam-pro": "^5.3.0",
     "firebase": "^12.16.0",
     "firebase-admin": "^14.2.0",
     "lucide-react": "0.525.0",
     "next": "16.2.11",
     "react": "19.2.8",
     "react-dom": "19.2.8",
-    "react-hook-form": "7.68.0",
-    "recharts": "3.5.1",
-    "tailwind-merge": "3.4.0",
-    "tesseract.js": "^7.0.0",
-    "zod": "4.2.0"
+    "recharts": "3.5.1"
   },
   "devDependencies": {
     "@eslint/eslintrc": "3.3.3",

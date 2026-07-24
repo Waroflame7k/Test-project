@@ -1,6 +1,6 @@
 # Next Steps
 
-- Tích hợp OCR thật qua provider mới kế thừa `OCRProvider`.
+- Đánh giá chất lượng Gemini OCR định kỳ bằng ảnh biên nhận thực tế.
 - Gửi cảnh báo Zalo/email từ bảng notifications.
 - Đồng bộ Google Calendar cho lịch hẹn và công việc.
 - Cổng tra cứu cho khách hàng bằng mã hồ sơ hoặc mã biên nhận.
