@@ -52,11 +52,11 @@ const TABS = [
 
 type TabKey = (typeof TABS)[number]["key"];
 
-export function CaseDetailScreen({ caseId }: { caseId: string }) {
+export function CaseDetailScreen({ caseId, initialTab }: { caseId: string; initialTab?: TabKey }) {
   const { data, navigate, updateCase, archiveCase, addSubmission, deleteSubmission, addTask, completeTask, deleteTask, addPayment, deletePayment, addDocument, updateDocument, deleteDocument, addCustodyTransfer, addActivityLog } =
     useApp();
   const currentUser = useCurrentUser();
-  const [activeTab, setActiveTab] = useState<TabKey>("info");
+  const [activeTab, setActiveTab] = useState<TabKey>(initialTab ?? "info");
   const [statusModalOpen, setStatusModalOpen] = useState(false);
   const [selectedStatus, setSelectedStatus] = useState<CaseStatus | "">("");
   const [submissionModalOpen, setSubmissionModalOpen] = useState(false);
@@ -482,7 +482,7 @@ export function CaseDetailScreen({ caseId }: { caseId: string }) {
                       Hạn: {formatDate(task.dueDate)} {task.dueTime ?? ""}
                     </p>
                   </div>
-                  {canManageRecords ? <button type="button" onClick={() => { if (window.confirm(`Xóa công việc ${task.title}?`)) deleteTask(task.id); }} className="rounded-lg p-1.5 text-rose-600 hover:bg-rose-50" aria-label="Xóa công việc"><Trash2 size={15} /></button> : null}
+                  <button type="button" onClick={() => { if (window.confirm(`Xóa công việc ${task.title}?`)) deleteTask(task.id); }} className="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-bold text-rose-600 hover:bg-rose-50" aria-label="Xóa công việc"><Trash2 size={15} /> Xóa</button>
                 </div>
               ))
             )}

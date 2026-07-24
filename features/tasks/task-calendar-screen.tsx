@@ -96,7 +96,7 @@ export function TaskCalendarScreen() {
   }
 
   function openCase(caseId: string) {
-    navigate("case-detail", { caseId, returnTo: "tasks" });
+    navigate("case-detail", { caseId, returnTo: "tasks", tab: "tasks" });
   }
 
   return (

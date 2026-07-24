@@ -123,6 +123,7 @@ function AppShellInner() {
     currentScreen === "case-detail" || currentScreen === "create-case" || currentScreen === "scan-receipt" || currentScreen === "task-calendar";
   const backScreen = currentScreen === "case-detail" && screenParams.returnTo === "tasks" ? "tasks" : activeTab;
   const caseId = typeof screenParams.caseId === "string" ? screenParams.caseId : "";
+  const caseTab = screenParams.tab === "tasks" ? "tasks" : undefined;
 
   return (
     <div className="flex min-h-screen bg-transparent">
@@ -224,7 +225,7 @@ function AppShellInner() {
         <main className="flex-1 overflow-y-auto px-2 pb-20 pt-2 md:px-0 md:pb-0 md:pt-2">
           {currentScreen === "dashboard" && <DashboardScreen />}
           {currentScreen === "cases" && <CasesScreen />}
-          {currentScreen === "case-detail" && caseId && <CaseDetailScreen caseId={caseId} />}
+          {currentScreen === "case-detail" && caseId && <CaseDetailScreen key={`${caseId}-${caseTab ?? "info"}`} caseId={caseId} initialTab={caseTab} />}
           {currentScreen === "create-case" && <CreateCaseWizard />}
           {currentScreen === "scan-receipt" && <ScanReceiptScreen />}
           {currentScreen === "tasks" && <TasksScreen />}
