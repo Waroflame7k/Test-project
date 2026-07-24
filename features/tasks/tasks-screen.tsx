@@ -7,7 +7,6 @@ import { Modal } from "@/components/ui/modal";
 import { PriorityBadge } from "@/components/ui/priority-badge";
 import { useApp, useCurrentUser } from "@/features/app-shell/app-context";
 import { formatDate, isOverdue, todayIso } from "@/lib/date";
-import { can } from "@/lib/permissions";
 import { visibleTasksForRole } from "@/lib/task-utils";
 import type { Priority } from "@/types/domain";
 
@@ -45,9 +44,8 @@ export function TasksScreen() {
       (first, second) => first.dueDate.localeCompare(second.dueDate) || (first.dueTime ?? "99:99").localeCompare(second.dueTime ?? "99:99")
     );
   }, [allTasks, filter, today]);
-  const canComplete = can(currentUser.role, "complete_tasks");
-  const canAssign = can(currentUser.role, "assign_staff");
-  const canManageRecords = can(currentUser.role, "manage_case_records");
+  const canComplete = true;
+  const canAssign = true;
   const taskCaseOptions = data.cases
     .filter((caseItem) => !caseItem.archivedAt)
     .map((caseItem) => {
@@ -78,7 +76,7 @@ export function TasksScreen() {
         const customer = data.customers.find((item) => item.id === caseItem?.customerId);
         const assignee = data.profiles.find((item) => item.id === task.assignedTo);
         const overdue = task.status !== "Hoàn thành" && isOverdue(task.dueDate, today);
-        return <article key={task.id} onClick={() => caseItem && navigate("case-detail", { caseId: caseItem.id, returnTo: "tasks" })} className={`luxe-card rounded-[1.4rem] p-4 ${caseItem ? "cursor-pointer transition hover:-translate-y-0.5 hover:shadow-md" : ""}`}><div className="flex items-start gap-3"><button type="button" disabled={!canComplete || task.status === "Hoàn thành"} onClick={(event) => { event.stopPropagation(); completeTask(task.id); }} className="mt-0.5 shrink-0 disabled:cursor-default">{task.status === "Hoàn thành" ? <CheckCircle2 size={22} className="text-emerald-600" /> : <Circle size={22} className="text-[var(--gold-700)]" />}</button><div className="min-w-0 flex-1"><div className="flex flex-wrap items-start justify-between gap-2"><div><p className={`text-sm font-bold ${task.status === "Hoàn thành" ? "text-[var(--text-faint)] line-through" : "text-[var(--text-main)]"}`}>{task.title}</p><p className="mt-1 text-xs text-[var(--text-soft)]">{assignee?.fullName ?? "Chưa phân công"}</p></div><div className="flex items-start gap-2"><PriorityBadge priority={task.priority} />{canManageRecords ? <button type="button" onClick={(event) => { event.stopPropagation(); if (window.confirm(`Xóa công việc ${task.title}?`)) deleteTask(task.id); }} className="rounded-lg p-1.5 text-rose-600 transition hover:bg-rose-50" aria-label="Xóa công việc"><Trash2 size={15} /></button> : null}</div></div><div className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-xs"><span className={`inline-flex items-center gap-1 font-semibold ${overdue ? "text-rose-700" : "text-[var(--text-soft)]"}`}><Clock3 size={13} /> {overdue ? "Quá hạn · " : "Hạn · "}{formatDate(task.dueDate)} {task.dueTime ?? ""}</span>{caseItem ? <span className="font-bold text-[var(--gold-700)]">{customer?.fullName ?? "Mở hồ sơ"} · {caseItem.serviceType}</span> : null}</div></div></div></article>;
+        return <article key={task.id} onClick={() => caseItem && navigate("case-detail", { caseId: caseItem.id, returnTo: "tasks" })} className={`luxe-card rounded-[1.4rem] p-4 ${caseItem ? "cursor-pointer transition hover:-translate-y-0.5 hover:shadow-md" : ""}`}><div className="flex items-start gap-3"><button type="button" disabled={!canComplete || task.status === "Hoàn thành"} onClick={(event) => { event.stopPropagation(); completeTask(task.id); }} className="mt-0.5 shrink-0 disabled:cursor-default">{task.status === "Hoàn thành" ? <CheckCircle2 size={22} className="text-emerald-600" /> : <Circle size={22} className="text-[var(--gold-700)]" />}</button><div className="min-w-0 flex-1"><div className="flex flex-wrap items-start justify-between gap-2"><div><p className={`text-sm font-bold ${task.status === "Hoàn thành" ? "text-[var(--text-faint)] line-through" : "text-[var(--text-main)]"}`}>{task.title}</p><p className="mt-1 text-xs text-[var(--text-soft)]">{assignee?.fullName ?? "Chưa phân công"}</p></div><div className="flex items-start gap-2"><PriorityBadge priority={task.priority} /><button type="button" onClick={(event) => { event.stopPropagation(); if (window.confirm(`Xóa công việc ${task.title}?`)) deleteTask(task.id); }} className="rounded-lg p-1.5 text-rose-600 transition hover:bg-rose-50" aria-label="Xóa công việc"><Trash2 size={15} /></button></div></div><div className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-xs"><span className={`inline-flex items-center gap-1 font-semibold ${overdue ? "text-rose-700" : "text-[var(--text-soft)]"}`}><Clock3 size={13} /> {overdue ? "Quá hạn · " : "Hạn · "}{formatDate(task.dueDate)} {task.dueTime ?? ""}</span>{caseItem ? <span className="font-bold text-[var(--gold-700)]">{customer?.fullName ?? "Mở hồ sơ"} · {caseItem.serviceType}</span> : null}</div></div></div></article>;
       })}</section>}
 
       <TaskModal open={addOpen} onClose={() => setAddOpen(false)} cases={taskCaseOptions} profiles={data.profiles} currentUserId={currentUser.id} canAssign={canAssign} onSubmit={(task) => { addTask(task); setAddOpen(false); }} />
