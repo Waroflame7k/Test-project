@@ -7,6 +7,7 @@ import { Modal } from "@/components/ui/modal";
 import { PriorityBadge } from "@/components/ui/priority-badge";
 import { useApp, useCurrentUser } from "@/features/app-shell/app-context";
 import { formatDate, isOverdue, todayIso } from "@/lib/date";
+import { can } from "@/lib/permissions";
 import { visibleTasksForRole } from "@/lib/task-utils";
 import type { Priority } from "@/types/domain";
 
@@ -44,8 +45,8 @@ export function TasksScreen() {
       (first, second) => first.dueDate.localeCompare(second.dueDate) || (first.dueTime ?? "99:99").localeCompare(second.dueTime ?? "99:99")
     );
   }, [allTasks, filter, today]);
-  const canComplete = true;
-  const canAssign = true;
+  const canComplete = can(currentUser.role, "complete_tasks");
+  const canAssign = can(currentUser.role, "assign_staff");
   const taskCaseOptions = data.cases
     .filter((caseItem) => !caseItem.archivedAt)
     .map((caseItem) => {
