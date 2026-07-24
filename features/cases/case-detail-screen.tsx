@@ -482,7 +482,7 @@ export function CaseDetailScreen({ caseId, initialTab }: { caseId: string; initi
                       Hạn: {formatDate(task.dueDate)} {task.dueTime ?? ""}
                     </p>
                   </div>
-                  <button type="button" onClick={() => { if (window.confirm(`Xóa công việc ${task.title}?`)) deleteTask(task.id); }} className="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-bold text-rose-600 hover:bg-rose-50" aria-label="Xóa công việc"><Trash2 size={15} /> Xóa</button>
+                  <button type="button" onClick={() => { if (window.confirm(`Xóa công việc ${task.title}?`)) deleteTask(task.id); }} className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-rose-50 px-2.5 py-1.5 text-xs font-bold text-rose-700 hover:bg-rose-100" aria-label="Xóa công việc"><Trash2 size={15} /> Xóa công việc</button>
                 </div>
               ))
             )}
